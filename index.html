@@ -48,11 +48,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 .link{color:var(--accent);font-size:12px}
 
 #main{flex:1;display:flex;flex-direction:column;min-width:0;height:100%}
-header{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 20px}
+header{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-start}
+#hleft{flex:1;min-width:240px}
 #hrow{display:flex;align-items:baseline;gap:10px}
 h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 #count{font-size:12px;color:var(--ink45)}
-#chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+#zones{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-left:auto}
+.zone{border:1px solid var(--line);border-radius:8px;padding:5px 8px 6px;min-width:120px}
+.ztitle{font-size:11px;color:var(--ink45);margin-bottom:4px;letter-spacing:.02em}
+.zchips{display:flex;flex-wrap:wrap;gap:4px}
+#zclear{width:100%;text-align:right;font-size:12px}
+#zclear:empty{display:none}
 .chip{padding:2px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink45)}
 .chip.person{color:var(--ink70)}
 .chip.on{border-color:var(--accent);background:var(--accentSoft);color:var(--accent)}
@@ -140,12 +146,18 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 
 <main id="main">
   <header>
-    <div id="hrow">
-      <button id="menubtn" onclick="toggleSide()">☰ 案子</button>
-      <h1 id="title"></h1><span id="count"></span>
+    <div id="hleft">
+      <div id="hrow">
+        <button id="menubtn" onclick="toggleSide()">☰ 案子</button>
+        <h1 id="title"></h1><span id="count"></span>
+      </div>
+      <div style="padding:6px 0 0"><input id="q" type="search" placeholder="搜尋任務關鍵字…（跨全部任務，Esc 清除）" style="width:100%;max-width:440px;font-size:14px;padding:7px 10px;background:var(--bg)"></div>
     </div>
-    <div style="padding:0 0 8px"><input id="q" type="search" placeholder="搜尋任務關鍵字…（跨全部任務，Esc 清除）" style="width:100%;max-width:440px;font-size:14px;padding:7px 10px;background:var(--bg)"></div>
-    <div id="chips"></div>
+    <div id="zones">
+      <div class="zone"><div class="ztitle">員工</div><div class="zchips" id="chipsP"></div></div>
+      <div class="zone"><div class="ztitle">動作</div><div class="zchips" id="chipsA"></div></div>
+      <div id="zclear"></div>
+    </div>
   </header>
   <div id="add">
     <input id="draft" type="text" placeholder="新增任務…  #案子  @標籤  !p1">
@@ -166,6 +178,7 @@ var token=localStorage.getItem(TK)||'';
 
 var SEEDL=['報價','請款','等對方回覆','待技術確認','送審','文件用印','合約','資料準備','聯繫拜訪'];
 var PEOPLE=[];try{PEOPLE=JSON.parse(localStorage.getItem('apl-people')||'[]')}catch(e){}
+if(localStorage.getItem('apl-people')===null)PEOPLE=['蛋蛋','Nelson','佳佳','YY'];  /* 尚未設定時的預設員工名單，可在設定裡改 */
 var PAL=['#2C6E9B','#3C7A4E','#8A5A2B','#5B5570','#1E7A4F','#7A3B5B'];
 function pcolor(n){var h=0;for(var i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return PAL[h%PAL.length]}
 
@@ -392,12 +405,16 @@ function render(){
     qval()?'搜尋「'+qval()+'」':showDone?'已完成':activeProject?(activeProject==='none'?'未分案':pmeta(activeProject).name):VIEWS.filter(function(v){return v[0]===view})[0][1];
   document.getElementById('count').textContent=vs.length+' 筆';
 
-  document.getElementById('chips').innerHTML=actionLabels().map(function(l){
+  var chipHtml=function(l){
       var on=activeLabels.indexOf(l.name)>=0;
       return '<button class="chip '+l.type+(on?' on':'')+'" onclick="toggleChip(\''+esc(l.name)+'\')">'+
         (l.type==='person'?'':'@')+esc(l.name)+'</button>';
-    }).join('')+
-    (activeLabels.length?'<button class="chip" style="border-color:transparent" onclick="activeLabels=[];render()">清除篩選</button>':'');
+    };
+  var als=actionLabels();
+  var pp=als.filter(function(l){return l.type==='person'}), aa=als.filter(function(l){return l.type!=='person'});
+  document.getElementById('chipsP').innerHTML=pp.length?pp.map(chipHtml).join(''):'<span class="chip" style="border-style:dashed">（設定裡填員工）</span>';
+  document.getElementById('chipsA').innerHTML=aa.map(chipHtml).join('');
+  document.getElementById('zclear').innerHTML=activeLabels.length?'<button class="link" onclick="activeLabels=[];render()">清除篩選</button>':'';
 
   document.getElementById('list').innerHTML=vs.length?vs.map(rowHTML).join(''):
     '<div class="empty">這裡是空的。在上方輸入一筆任務，用 #案子 指定歸屬。</div>';
