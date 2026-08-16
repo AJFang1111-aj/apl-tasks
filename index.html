@@ -34,6 +34,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 #brand span{display:block;font-size:12px;color:var(--ink45);margin-top:2px}
 .navbtn{display:flex;width:100%;text-align:left;padding:7px 8px;border-radius:6px;color:var(--ink70);margin-bottom:1px;align-items:center;gap:8px}
 .navbtn.on{background:var(--accentSoft);color:var(--accent)}
+.navbtn.dropok{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accentSoft)}
+@media(hover:hover){.row[draggable=true]{cursor:grab}.row[draggable=true]:active{cursor:grabbing}}
 .navbtn .n{margin-left:auto;font-size:12px;color:var(--ink45)}
 .navbtn .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
@@ -300,6 +302,11 @@ function toggle(id){
 function upd(id,args){args.id=id;push([{type:'item_update',uuid:uuid(),args:args}])}
 function setDue(id,v){upd(id,{due:v?{date:v}:null})}
 function setPri(id,v){upd(id,{priority:toAPI(+v)})}
+var dragId=null;
+function dragT(e,id){dragId=id;e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',id)}catch(x){}}
+function dragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('dropok')}
+function dragLeave(e){e.currentTarget.classList.remove('dropok')}
+function dropT(e,pl){e.preventDefault();e.currentTarget.classList.remove('dropok');var id=dragId||(e.dataTransfer?e.dataTransfer.getData('text/plain'):'');dragId=null;if(id)setProject(id,pl)}
 function setProject(id,pl){
   var it=S.items.filter(function(x){return x.id===id})[0];if(!it)return;
   var labs=taskLabels(it);if(pl)labs.push(pl);
@@ -372,9 +379,9 @@ function render(){
 
   var f=(document.getElementById('pfilter').value||'').toLowerCase();
   document.getElementById('projlist').innerHTML=
-    '<button class="navbtn'+(activeProject==='none'?' on':'')+'" onclick="pickProject(\'none\')"><span class="nm">未分案</span><span class="n">'+(open['none']||'')+'</span></button>'+
+    '<button class="navbtn'+(activeProject==='none'?' on':'')+'" onclick="pickProject(\'none\')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropT(event,\'\')" title="把任務拖到這裡＝移出案子"><span class="nm">未分案</span><span class="n">'+(open['none']||'')+'</span></button>'+
     projects().filter(function(p){return p.name.toLowerCase().indexOf(f)>=0}).map(function(p){
-      return '<button class="navbtn'+(activeProject===p.id?' on':'')+'" onclick="pickProject(\''+esc(p.id)+'\')">'+
+      return '<button class="navbtn'+(activeProject===p.id?' on':'')+'" onclick="pickProject(\''+esc(p.id)+'\')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropT(event,\''+esc(p.id)+'\')" title="把任務拖到這裡歸入此案">'+
         '<span class="dot" style="background:'+pcolor(p.name)+'"></span><span class="nm">'+esc(p.name)+
         '</span><span class="n">'+(open[p.id]||'')+'</span></button>';
     }).join('');
@@ -397,7 +404,7 @@ function render(){
 
 function rowHTML(t){
   var d=dueOf(t),late=d&&d<TODAY&&!t.checked,ui=toUI(t.priority),pj=taskProject(t);
-  var h='<div class="row">'+
+  var h='<div class="row"'+(editing===t.id?'':' draggable="true" ondragstart="dragT(event,\''+t.id+'\')"')+'>'+
     '<button class="tick'+(t.checked?' done':'')+'" onclick="toggle(\''+t.id+'\')" aria-label="切換完成"></button>'+
     '<div class="body"><div class="txt'+(t.checked?' done':'')+'" onclick="toggleEdit(\''+t.id+'\')">'+esc(t.content)+'</div>'+
     '<div class="meta"><span style="color:'+PC[ui]+'">P'+ui+'</span>'+
