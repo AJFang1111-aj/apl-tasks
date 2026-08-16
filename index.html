@@ -141,6 +141,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
       <button id="menubtn" onclick="toggleSide()">☰ 案子</button>
       <h1 id="title"></h1><span id="count"></span>
     </div>
+    <div style="padding:0 0 8px"><input id="q" type="search" placeholder="搜尋任務關鍵字…（跨全部任務，Esc 清除）" style="width:100%;max-width:440px;font-size:14px;padding:7px 10px;background:var(--bg)"></div>
     <div id="chips"></div>
   </header>
   <div id="add">
@@ -325,8 +326,25 @@ function closeSide(){document.getElementById('side').classList.remove('open')}
 /* ══ 篩選 ══ */
 var VIEWS=[['today','今天與逾期'],['week','未來 7 天'],['nodate','沒有日期'],['all','全部']];
 function dueOf(it){return it.due&&it.due.date?it.due.date.slice(0,10):''}
+function qval(){var e=document.getElementById('q');return e?e.value.trim():''}
+function tsort(a,b){
+  var da=dueOf(a),db=dueOf(b);
+  if(!da&&db)return 1;
+  if(da&&!db)return -1;
+  if(da!==db)return da<db?-1:1;
+  return (b.priority||1)-(a.priority||1);
+}
 function visible(){
   var out=S.items.filter(function(t){return showDone?t.checked:!t.checked});
+  var q=qval().toLowerCase();
+  if(q){
+    var ws=q.split(/\s+/);
+    out=out.filter(function(t){
+      var hay=((t.content||'')+' '+(t.description||'')+' '+(t.labels||[]).join(' ')).toLowerCase();
+      return ws.every(function(w){return hay.indexOf(w)>=0});
+    });
+    return out.sort(tsort);
+  }
   if(activeProject)out=out.filter(function(t){return (taskProject(t)||'none')===activeProject});
   if(activeLabels.length)out=out.filter(function(t){
     return activeLabels.every(function(l){return (t.labels||[]).indexOf(l)>=0})});
@@ -336,13 +354,7 @@ function visible(){
     else if(view==='week')out=out.filter(function(t){d=dueOf(t);return d&&d<=addDays(7)});
     else if(view==='nodate')out=out.filter(function(t){return !dueOf(t)});
   }
-  return out.sort(function(a,b){
-    var da=dueOf(a),db=dueOf(b);
-    if(!da&&db)return 1;
-    if(da&&!db)return -1;
-    if(da!==db)return da<db?-1:1;
-    return (b.priority||1)-(a.priority||1);
-  });
+  return out.sort(tsort);
 }
 
 /* ══ 繪製 ══ */
@@ -369,7 +381,7 @@ function render(){
 
   var vs=visible();
   document.getElementById('title').textContent=
-    showDone?'已完成':activeProject?(activeProject==='none'?'未分案':pmeta(activeProject).name):VIEWS.filter(function(v){return v[0]===view})[0][1];
+    qval()?'搜尋「'+qval()+'」':showDone?'已完成':activeProject?(activeProject==='none'?'未分案':pmeta(activeProject).name):VIEWS.filter(function(v){return v[0]===view})[0][1];
   document.getElementById('count').textContent=vs.length+' 筆';
 
   document.getElementById('chips').innerHTML=actionLabels().map(function(l){
@@ -437,9 +449,11 @@ function renderPanel(){
     var ps=projects();
     h+= ps.length? ps.map(function(p){
       return '<div class="item"><span class="dot" style="background:'+pcolor(p.name)+'"></span>'+
-        '<span style="flex:1">'+esc(p.name)+'</span></div>';
+        '<span style="flex:1">'+esc(p.name)+'</span>'+
+        '<button class="link" onclick="renameProject(\''+esc(p.id)+'\')">改名</button>'+
+        '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+esc(p.id)+'\')">刪除</button></div>';
     }).join('') : '<p class="hint" style="margin-top:0">目前還沒有案子。</p>';
-    h+='<p class="hint">案子在 Todoist 裡是名稱以 '+PRE+' 開頭的標籤。要改名或刪除，去 Todoist 的標籤設定操作，這裡按重新整理就會更新。</p>';
+    h+='<p class="hint">改名會自動更新所有已掛這個案子的任務；刪除只移除案子標記，任務本身不會被刪。</p>';
   }
   if(panelKind==='settings'){
     h+='<p class="hint" style="margin-top:0">資料存在你的 Todoist 帳號，這個檔案本身不保存任何任務。</p>'+
@@ -474,6 +488,28 @@ function newProject(){
   var n=document.getElementById('np').value.trim();if(!n)return;
   closePanel();push([{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:PRE+n}}]);
 }
+function labelIdByName(n){var l=S.labels.filter(function(x){return x.name===n})[0];return l?l.id:null}
+function renameProject(full){
+  var cur=full.slice(PRE.length);
+  var n=prompt('案子改名：',cur);
+  if(n==null)return;
+  n=n.trim();
+  if(!n||n===cur)return;
+  var id=labelIdByName(full);
+  if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
+  if(activeProject===full)activeProject=PRE+n;
+  closePanel();
+  push([{type:'label_update',uuid:uuid(),args:{id:id,name:PRE+n}}]);
+}
+function deleteProject(full){
+  var nm=full.slice(PRE.length);
+  if(!confirm('刪除案子「'+nm+'」？\n掛在這個案子的任務不會被刪，只會變成未分案。'))return;
+  var id=labelIdByName(full);
+  if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
+  if(activeProject===full)activeProject=null;
+  closePanel();
+  push([{type:'label_delete',uuid:uuid(),args:{id:id}}]);
+}
 function savePeople(){
   PEOPLE=document.getElementById('ppl').value.split(',').map(function(x){return x.trim()}).filter(function(x){return x});
   try{localStorage.setItem('apl-people',JSON.stringify(PEOPLE))}catch(e){}
@@ -495,6 +531,8 @@ function connect(){
   });
 }
 document.getElementById('pfilter').addEventListener('input',render);
+document.getElementById('q').addEventListener('input',render);
+document.getElementById('q').addEventListener('keydown',function(e){if(e.key==='Escape'){this.value='';render()}});
 document.getElementById('draft').addEventListener('keydown',function(e){if(e.key==='Enter')addTask()});
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&token)pull(false)});
 
