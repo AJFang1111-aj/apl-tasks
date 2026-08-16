@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="任務台">
+<title>吉格線 任務台</title>
+<style>
+:root{
+  --ink:#0F2C5C;--ink70:#41577E;--ink45:#7A88A0;
+  --line:#DCE1EA;--lineSoft:#EAEEF4;
+  --bg:#F7F9FC;--surface:#FFFFFF;
+  --accent:#00849E;--accentSoft:#E2F2F6;
+  --warn:#B3541E;--danger:#A32020;--ok:#1E7A4F;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Segoe UI",sans-serif;
+  background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5;display:flex;overflow:hidden;
+  padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:none;cursor:pointer;padding:0}
+input,select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px;outline:none;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+#side{width:250px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;height:100%}
+#brand{padding:12px 16px;border-bottom:1px solid var(--lineSoft)}
+#brand b{font-size:15px;letter-spacing:-.01em}
+#brand span{display:block;font-size:12px;color:var(--ink45);margin-top:2px}
+.navbtn{display:flex;width:100%;text-align:left;padding:7px 8px;border-radius:6px;color:var(--ink70);margin-bottom:1px;align-items:center;gap:8px}
+.navbtn.on{background:var(--accentSoft);color:var(--accent)}
+.navbtn .n{margin-left:auto;font-size:12px;color:var(--ink45)}
+.navbtn .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+#views{padding:8px}
+#projhead{padding:10px 12px 0;border-top:1px solid var(--lineSoft);display:flex;justify-content:space-between;align-items:center}
+#projhead span{font-size:12px;color:var(--ink45);font-weight:500}
+#projlist{flex:1;overflow-y:auto;padding:0 8px 16px;-webkit-overflow-scrolling:touch}
+#foot{border-top:1px solid var(--lineSoft);padding:8px 16px;font-size:12px;color:var(--ink45);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.link{color:var(--accent);font-size:12px}
+
+#main{flex:1;display:flex;flex-direction:column;min-width:0;height:100%}
+header{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 20px}
+#hrow{display:flex;align-items:baseline;gap:10px}
+h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
+#count{font-size:12px;color:var(--ink45)}
+#chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.chip{padding:2px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink45)}
+.chip.person{color:var(--ink70)}
+.chip.on{border-color:var(--accent);background:var(--accentSoft);color:var(--accent)}
+#add{background:var(--surface);border-bottom:1px solid var(--line);padding:8px 20px;display:flex;gap:8px;align-items:center}
+#add input[type=text]{flex:1}
+#add input[type=date]{width:auto;font-size:12px;color:var(--ink70)}
+.primary{background:var(--accent);color:#fff;padding:7px 16px;border-radius:6px;font-weight:500;flex-shrink:0}
+#list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.row{border-bottom:1px solid var(--lineSoft);padding:10px 20px;display:flex;gap:12px;align-items:flex-start}
+.tick{width:18px;height:18px;border:1px solid var(--ink45);border-radius:50%;margin-top:2px;flex-shrink:0}
+.tick.done{background:var(--ok);border-color:var(--ok)}
+.body{flex:1;min-width:0}
+.txt{cursor:pointer;line-height:1.45;word-break:break-word}
+.txt.done{color:var(--ink45);text-decoration:line-through}
+.meta{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;font-size:12px;color:var(--ink45)}
+.late{color:var(--danger)}
+.note{font-size:13px;color:var(--ink70);margin-top:4px;white-space:pre-wrap;word-break:break-word}
+.edit{margin-top:12px;padding-top:12px;border-top:1px solid var(--lineSoft);display:grid;gap:8px}
+.editrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.editrow select,.editrow input{width:auto;font-size:13px}
+.empty{padding:60px 20px;text-align:center;color:var(--ink45)}
+
+#gate{position:fixed;inset:0;background:var(--bg);z-index:60;display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+#gate.on{display:flex}
+#gatebox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px;max-width:460px;width:100%}
+#gatebox h2{font-size:16px;margin:0 0 10px}
+#gatebox p,#gatebox li{font-size:13px;color:var(--ink70);line-height:1.6}
+#gatebox ol{padding-left:20px;margin:8px 0 14px}
+#err{color:var(--danger);font-size:13px;margin-top:10px;white-space:pre-wrap}
+
+#mask{position:fixed;inset:0;background:rgba(15,44,92,.35);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+#mask.on{display:flex}
+#panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;width:100%;max-width:520px;max-height:82vh;overflow-y:auto}
+#panel h2{font-size:15px;margin:0 0 14px}
+.ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--lineSoft)}
+.item input{border:none;background:none;padding:2px 0}
+.tiny{font-size:12px;color:var(--ink45);flex-shrink:0}
+.hint{font-size:12px;color:var(--ink45);margin-top:12px;line-height:1.6}
+#menubtn{display:none}
+.spin{color:var(--accent)}
+
+@media (max-width:760px){
+  body{flex-direction:column}
+  #side{position:fixed;left:0;top:0;bottom:0;z-index:30;transform:translateX(-100%);transition:transform .18s ease-out;width:80%;max-width:290px}
+  #side.open{transform:none;box-shadow:0 0 0 100vmax rgba(15,44,92,.3)}
+  #menubtn{display:block;font-size:14px;color:var(--accent)}
+  header,#add,.row{padding-left:14px;padding-right:14px}
+  #add{flex-wrap:wrap}
+  #add input[type=text]{flex:1 1 100%}
+}
+@media (prefers-reduced-motion:reduce){#side{transition:none}}
+</style>
+</head>
+<body>
+
+<div id="gate"><div id="gatebox">
+  <h2>連接你的 Todoist</h2>
+  <p>這個介面把 Todoist 當資料庫。連上之後，Mac 和 iPhone 看到的是同一份資料，Todoist app 裡的異動也會同步過來。</p>
+  <ol>
+    <li>在電腦上打開 Todoist → 設定 → 整合 → 開發者</li>
+    <li>複製「API 權杖」（一長串英數字）</li>
+    <li>貼到下面，按連接</li>
+  </ol>
+  <input id="tokenin" type="password" placeholder="貼上 API 權杖" autocomplete="off">
+  <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+    <button class="primary" onclick="connect()">連接</button>
+    <span class="tiny">權杖只存在這台裝置的瀏覽器裡</span>
+  </div>
+  <div id="err"></div>
+</div></div>
+
+<aside id="side">
+  <div id="brand"><b>吉格線 任務台</b><span id="odue"></span></div>
+  <nav id="views"></nav>
+  <div id="projhead"><span>案子</span><button class="link" onclick="openPanel('projects')">管理</button></div>
+  <div style="padding:8px 12px 6px"><input id="pfilter" type="text" placeholder="搜尋案子" style="font-size:13px;padding:5px 8px;background:var(--bg)"></div>
+  <div id="projlist"></div>
+  <div id="foot">
+    <button class="link" onclick="pull(true)">重新整理</button>
+    <span id="status"></span>
+    <button class="link" onclick="openPanel('settings')">設定</button>
+  </div>
+</aside>
+
+<main id="main">
+  <header>
+    <div id="hrow">
+      <button id="menubtn" onclick="toggleSide()">☰ 案子</button>
+      <h1 id="title"></h1><span id="count"></span>
+    </div>
+    <div id="chips"></div>
+  </header>
+  <div id="add">
+    <input id="draft" type="text" placeholder="新增任務…  #案子  @標籤  !p1">
+    <input id="ddue" type="date">
+    <button class="primary" onclick="addTask()">新增</button>
+  </div>
+  <div id="list"></div>
+</main>
+
+<div id="mask" onclick="if(event.target.id==='mask')closePanel()"><div id="panel"></div></div>
+
+<script>
+/* ══ 設定 ══ */
+var API='https://api.todoist.com/api/v1/sync';
+var TK='apl-todoist-token', CK='apl-cache-v2';
+var PRE='案-';                      /* 案子以標籤儲存的前綴 */
+var token=localStorage.getItem(TK)||'';
+
+var SEEDL=['報價','請款','等對方回覆','要問John','送審','文件用印','合約','資料準備','聯繫拜訪'];
+var PEOPLE=[];try{PEOPLE=JSON.parse(localStorage.getItem('apl-people')||'[]')}catch(e){}
+var PAL=['#2C6E9B','#3C7A4E','#8A5A2B','#5B5570','#1E7A4F','#7A3B5B'];
+function pcolor(n){var h=0;for(var i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return PAL[h%PAL.length]}
+
+/* Todoist 的 priority 與畫面上的 P 是反的：API 4 = P1 */
+function toUI(p){return 5-(p||1)}
+function toAPI(p){return 5-p}
+
+var S={items:[],labels:[],syncToken:'*'};
+var view='today',activeProject=null,activeLabels=[],showDone=false,editing=null,panelKind=null,busy=false;
+
+function uuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){
+  var r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16)})}
+function pad(n){return n<10?'0'+n:''+n}
+function isod(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+var TODAY=isod(new Date());
+function addDays(n){var d=new Date();d.setDate(d.getDate()+n);return isod(d)}
+function dayLabel(due){
+  if(!due)return'';
+  if(due<TODAY)return'逾期';
+  if(due===TODAY)return'今天';
+  if(due===addDays(1))return'明天';
+  var p=due.split('-');return (+p[1])+'/'+(+p[2]);
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function setStatus(t,cls){var e=document.getElementById('status');if(e){e.textContent=t;e.className=cls||'tiny'}}
+
+/* ══ API ══ */
+function enc(o){
+  return Object.keys(o).map(function(k){
+    return encodeURIComponent(k)+'='+encodeURIComponent(o[k])}).join('&');
+}
+function call(params){
+  return fetch(API,{method:'POST',
+    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/x-www-form-urlencoded'},
+    body:enc(params)}).then(function(r){
+      if(r.status===401)throw new Error('權杖無效或已撤銷，請到設定重新輸入。');
+      if(r.status===429)throw new Error('請求太頻繁，請稍等一分鐘再試。');
+      if(!r.ok)throw new Error('Todoist 回應 '+r.status+'，稍後再試。');
+      return r.json();
+    });
+}
+function pull(full){
+  if(!token||busy)return Promise.resolve();
+  busy=true;setStatus('同步中…','spin');
+  var t=full?'*':(S.syncToken||'*');
+  return call({sync_token:t,resource_types:'["items","labels"]'}).then(function(d){
+    if(d.full_sync||t==='*'){
+      S.items=d.items||[];S.labels=d.labels||[];
+    }else{
+      merge('items',d.items);merge('labels',d.labels);
+    }
+    S.syncToken=d.sync_token||S.syncToken;
+    S.items=S.items.filter(function(i){return !i.is_deleted&&!i.checked||i.checked});
+    cache();busy=false;setStatus('已同步 '+new Date().toTimeString().slice(0,5));render();
+  }).catch(function(e){
+    busy=false;setStatus('');fail(e);
+  });
+}
+function merge(key,incoming){
+  if(!incoming||!incoming.length)return;
+  var map={};S[key].forEach(function(x){map[x.id]=x});
+  incoming.forEach(function(x){map[x.id]=x});
+  S[key]=Object.keys(map).map(function(k){return map[k]}).filter(function(x){return !x.is_deleted});
+}
+function push(commands){
+  if(!token)return Promise.resolve();
+  setStatus('儲存中…','spin');
+  return call({commands:JSON.stringify(commands)}).then(function(d){
+    var bad=[];
+    Object.keys(d.sync_status||{}).forEach(function(k){
+      if(d.sync_status[k]!=='ok')bad.push(d.sync_status[k].error||'未知錯誤');
+    });
+    if(bad.length)throw new Error(bad.join('\n'));
+    return pull(false);
+  }).catch(function(e){setStatus('');fail(e);return pull(true)});
+}
+function fail(e){
+  var m=(e&&e.message)||String(e);
+  if(m.indexOf('Failed to fetch')>=0)m='連不上 Todoist。檢查網路，或確認這個檔案是用 https / 本機開啟。';
+  alert(m);
+  if(m.indexOf('權杖')>=0){localStorage.removeItem(TK);token='';showGate()}
+}
+function cache(){try{localStorage.setItem(CK,JSON.stringify(S))}catch(e){}}
+function restore(){try{var r=localStorage.getItem(CK);if(r)S=JSON.parse(r)}catch(e){}}
+
+/* ══ 案子（以標籤儲存）══ */
+function projects(){
+  return S.labels.filter(function(l){return l.name.indexOf(PRE)===0})
+    .map(function(l){var n=l.name.slice(PRE.length);return{id:l.name,name:n}})
+    .sort(function(a,b){return a.name<b.name?-1:1});
+}
+function actionLabels(){
+  return S.labels.filter(function(l){return l.name.indexOf(PRE)!==0})
+    .map(function(l){return{id:l.name,name:l.name,type:PEOPLE.indexOf(l.name)>=0?'person':'action'}});
+}
+function taskProject(it){
+  var n=(it.labels||[]).filter(function(x){return x.indexOf(PRE)===0})[0];
+  return n||null;
+}
+function taskLabels(it){return (it.labels||[]).filter(function(x){return x.indexOf(PRE)!==0})}
+function pmeta(id){return{name:id?id.slice(PRE.length):''}}
+
+/* ══ 解析 ══ */
+function parseInput(raw){
+  var text=raw,proj=null,labs=[],pri=4;
+  text=text.replace(/!p([1-4])/gi,function(_,n){pri=+n;return''});
+  text=text.replace(/#([^\s#@!]+)/g,function(_,n){
+    var hit=projects().filter(function(p){return p.name.toLowerCase().indexOf(n.toLowerCase())>=0})[0];
+    if(hit){proj=hit.id;return''}return'#'+n});
+  text=text.replace(/@([^\s#@!]+)/g,function(_,n){
+    var hit=actionLabels().filter(function(l){return l.name.toLowerCase().indexOf(n.toLowerCase())>=0})[0];
+    if(hit){labs.push(hit.name);return''}return'@'+n});
+  return{content:text.replace(/\s+/g,' ').trim(),proj:proj,labs:labs,pri:pri};
+}
+
+/* ══ 動作 ══ */
+function addTask(){
+  var el=document.getElementById('draft'),due=document.getElementById('ddue');
+  if(!el.value.trim())return;
+  var p=parseInput(el.value);if(!p.content)return;
+  var proj=p.proj||(activeProject&&activeProject!=='none'?activeProject:null);
+  var labels=p.labs.slice();if(proj)labels.push(proj);
+  var d=due.value||(view==='today'?TODAY:'');
+  var args={content:p.content,labels:labels,priority:toAPI(p.pri)};
+  if(d)args.due={date:d};
+  el.value='';due.value='';
+  push([{type:'item_add',temp_id:uuid(),uuid:uuid(),args:args}]);
+  el.focus();
+}
+function toggle(id){
+  var it=S.items.filter(function(x){return x.id===id})[0];if(!it)return;
+  push([{type:it.checked?'item_uncomplete':'item_complete',uuid:uuid(),args:{id:id}}]);
+}
+function upd(id,args){args.id=id;push([{type:'item_update',uuid:uuid(),args:args}])}
+function setDue(id,v){upd(id,{due:v?{date:v}:null})}
+function setPri(id,v){upd(id,{priority:toAPI(+v)})}
+function setProject(id,pl){
+  var it=S.items.filter(function(x){return x.id===id})[0];if(!it)return;
+  var labs=taskLabels(it);if(pl)labs.push(pl);
+  upd(id,{labels:labs});
+}
+function toggleTaskLabel(id,name){
+  var it=S.items.filter(function(x){return x.id===id})[0];if(!it)return;
+  var labs=(it.labels||[]).slice(),i=labs.indexOf(name);
+  if(i>=0)labs.splice(i,1);else labs.push(name);
+  upd(id,{labels:labs});
+}
+function delTask(id){
+  if(!confirm('刪除這筆任務？Todoist 那邊也會一起刪除。'))return;
+  editing=null;push([{type:'item_delete',uuid:uuid(),args:{id:id}}]);
+}
+function setView(v){view=v;showDone=false;activeProject=null;closeSide();render()}
+function pickProject(id){activeProject=id;showDone=false;view='all';closeSide();render()}
+function toggleDone(){showDone=!showDone;closeSide();render()}
+function toggleChip(n){var i=activeLabels.indexOf(n);if(i>=0)activeLabels.splice(i,1);else activeLabels.push(n);render()}
+function toggleEdit(id){editing=editing===id?null:id;render()}
+function toggleSide(){document.getElementById('side').classList.toggle('open')}
+function closeSide(){document.getElementById('side').classList.remove('open')}
+
+/* ══ 篩選 ══ */
+var VIEWS=[['today','今天與逾期'],['week','未來 7 天'],['nodate','沒有日期'],['all','全部']];
+function dueOf(it){return it.due&&it.due.date?it.due.date.slice(0,10):''}
+function visible(){
+  var out=S.items.filter(function(t){return showDone?t.checked:!t.checked});
+  if(activeProject)out=out.filter(function(t){return (taskProject(t)||'none')===activeProject});
+  if(activeLabels.length)out=out.filter(function(t){
+    return activeLabels.every(function(l){return (t.labels||[]).indexOf(l)>=0})});
+  if(!showDone){
+    var d;
+    if(view==='today')out=out.filter(function(t){d=dueOf(t);return d&&d<=TODAY});
+    else if(view==='week')out=out.filter(function(t){d=dueOf(t);return d&&d<=addDays(7)});
+    else if(view==='nodate')out=out.filter(function(t){return !dueOf(t)});
+  }
+  return out.sort(function(a,b){
+    var da=dueOf(a),db=dueOf(b);
+    if(!da&&db)return 1;
+    if(da&&!db)return -1;
+    if(da!==db)return da<db?-1:1;
+    return (b.priority||1)-(a.priority||1);
+  });
+}
+
+/* ══ 繪製 ══ */
+var PC={1:'var(--danger)',2:'var(--warn)',3:'var(--accent)',4:'var(--ink45)'};
+function render(){
+  var open={};
+  S.items.forEach(function(t){if(t.checked)return;var k=taskProject(t)||'none';open[k]=(open[k]||0)+1});
+  var od=S.items.filter(function(t){var d=dueOf(t);return !t.checked&&d&&d<TODAY}).length;
+  document.getElementById('odue').textContent=od>0?od+' 筆逾期':'沒有逾期任務';
+
+  document.getElementById('views').innerHTML=VIEWS.map(function(v){
+    var on=!showDone&&view===v[0]&&!activeProject;
+    return '<button class="navbtn'+(on?' on':'')+'" onclick="setView(\''+v[0]+'\')">'+v[1]+'</button>';
+  }).join('')+'<button class="navbtn'+(showDone?' on':'')+'" onclick="toggleDone()">已完成</button>';
+
+  var f=(document.getElementById('pfilter').value||'').toLowerCase();
+  document.getElementById('projlist').innerHTML=
+    '<button class="navbtn'+(activeProject==='none'?' on':'')+'" onclick="pickProject(\'none\')"><span class="nm">未分案</span><span class="n">'+(open['none']||'')+'</span></button>'+
+    projects().filter(function(p){return p.name.toLowerCase().indexOf(f)>=0}).map(function(p){
+      return '<button class="navbtn'+(activeProject===p.id?' on':'')+'" onclick="pickProject(\''+esc(p.id)+'\')">'+
+        '<span class="dot" style="background:'+pcolor(p.name)+'"></span><span class="nm">'+esc(p.name)+
+        '</span><span class="n">'+(open[p.id]||'')+'</span></button>';
+    }).join('');
+
+  var vs=visible();
+  document.getElementById('title').textContent=
+    showDone?'已完成':activeProject?(activeProject==='none'?'未分案':pmeta(activeProject).name):VIEWS.filter(function(v){return v[0]===view})[0][1];
+  document.getElementById('count').textContent=vs.length+' 筆';
+
+  document.getElementById('chips').innerHTML=actionLabels().map(function(l){
+      var on=activeLabels.indexOf(l.name)>=0;
+      return '<button class="chip '+l.type+(on?' on':'')+'" onclick="toggleChip(\''+esc(l.name)+'\')">'+
+        (l.type==='person'?'':'@')+esc(l.name)+'</button>';
+    }).join('')+
+    (activeLabels.length?'<button class="chip" style="border-color:transparent" onclick="activeLabels=[];render()">清除篩選</button>':'');
+
+  document.getElementById('list').innerHTML=vs.length?vs.map(rowHTML).join(''):
+    '<div class="empty">這裡是空的。在上方輸入一筆任務，用 #案子 指定歸屬。</div>';
+}
+
+function rowHTML(t){
+  var d=dueOf(t),late=d&&d<TODAY&&!t.checked,ui=toUI(t.priority),pj=taskProject(t);
+  var h='<div class="row">'+
+    '<button class="tick'+(t.checked?' done':'')+'" onclick="toggle(\''+t.id+'\')" aria-label="切換完成"></button>'+
+    '<div class="body"><div class="txt'+(t.checked?' done':'')+'" onclick="toggleEdit(\''+t.id+'\')">'+esc(t.content)+'</div>'+
+    '<div class="meta"><span style="color:'+PC[ui]+'">P'+ui+'</span>'+
+      (d?'<span class="'+(late?'late':'')+'">'+dayLabel(d)+'</span>':'')+
+      (pj?'<span style="color:'+pcolor(pmeta(pj).name)+'">'+esc(pmeta(pj).name)+'</span>':'')+
+      taskLabels(t).map(function(l){return '<span>@'+esc(l)+'</span>'}).join('')+
+    '</div>';
+  if(editing===t.id){
+    h+='<div class="edit">'+
+      '<input type="text" value="'+esc(t.content)+'" onchange="upd(\''+t.id+'\',{content:this.value})">'+
+      '<textarea rows="3" placeholder="備註（存進 Todoist 的描述欄）" onchange="upd(\''+t.id+'\',{description:this.value})">'+esc(t.description||'')+'</textarea>'+
+      '<div class="editrow">'+
+        '<select onchange="setProject(\''+t.id+'\',this.value)">'+
+          '<option value=""'+(!pj?' selected':'')+'>未分案</option>'+
+          projects().map(function(p){return '<option value="'+esc(p.id)+'"'+(pj===p.id?' selected':'')+'>'+esc(p.name)+'</option>'}).join('')+
+        '</select>'+
+        '<select onchange="setPri(\''+t.id+'\',this.value)">'+
+          [1,2,3,4].map(function(n){return '<option value="'+n+'"'+(ui===n?' selected':'')+'>P'+n+'</option>'}).join('')+
+        '</select>'+
+        '<input type="date" value="'+d+'" onchange="setDue(\''+t.id+'\',this.value)">'+
+        '<button class="link" style="margin-left:auto;color:var(--danger)" onclick="delTask(\''+t.id+'\')">刪除</button>'+
+      '</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:4px">'+
+        actionLabels().map(function(l){
+          var on=(t.labels||[]).indexOf(l.name)>=0;
+          return '<button class="chip'+(on?' on':'')+'" onclick="toggleTaskLabel(\''+t.id+'\',\''+esc(l.name)+'\')">'+esc(l.name)+'</button>';
+        }).join('')+
+      '</div></div>';
+  }else if(t.description){
+    h+='<div class="note">'+esc(t.description.length>160?t.description.slice(0,160)+'…':t.description)+'</div>';
+  }
+  return h+'</div></div>';
+}
+
+/* ══ 面板 ══ */
+function openPanel(k){panelKind=k;document.getElementById('mask').classList.add('on');closeSide();renderPanel()}
+function closePanel(){panelKind=null;document.getElementById('mask').classList.remove('on')}
+function renderPanel(){
+  var t={projects:'管理案子',settings:'設定'}[panelKind];
+  var h='<div class="ph"><h2>'+t+'</h2><button class="link" onclick="closePanel()">關閉</button></div>';
+  if(panelKind==='projects'){
+    var missL=SEEDL.filter(function(n){return !S.labels.some(function(l){return l.name===n})});
+    h+='<p class="hint" style="margin-top:0">一行一個案子名稱，貼上後按建立。案子會存成 Todoist 標籤，Todoist app 那邊也看得到。</p>'+
+      '<textarea id="bulk" rows="6" placeholder="一行一個案子名稱"></textarea>'+
+      '<div class="editrow" style="margin:8px 0 16px">'+
+      '<button class="primary" onclick="bulkAdd()">建立這些案子</button>'+
+      (missL.length?'<button class="link" onclick="seedActions()">同時建立 '+missL.length+' 個動作標籤</button>':'')+
+      '</div>';
+    var ps=projects();
+    h+= ps.length? ps.map(function(p){
+      return '<div class="item"><span class="dot" style="background:'+pcolor(p.name)+'"></span>'+
+        '<span style="flex:1">'+esc(p.name)+'</span></div>';
+    }).join('') : '<p class="hint" style="margin-top:0">目前還沒有案子。</p>';
+    h+='<p class="hint">案子在 Todoist 裡是名稱以 '+PRE+' 開頭的標籤。要改名或刪除，去 Todoist 的標籤設定操作，這裡按重新整理就會更新。</p>';
+  }
+  if(panelKind==='settings'){
+    h+='<p class="hint" style="margin-top:0">資料存在你的 Todoist 帳號，這個檔案本身不保存任何任務。</p>'+
+      '<div class="item"><span class="tiny" style="width:70px">目前權杖</span><span style="flex:1">'+(token?'已連接（'+esc(token.slice(0,6))+'…）':'未連接')+'</span></div>'+
+      '<div class="editrow" style="margin-top:14px">'+
+      '<button class="primary" onclick="pull(true)">完整重新同步</button>'+
+      '<button class="link" style="color:var(--danger)" onclick="logout()">移除這台裝置的權杖</button></div>'+
+      '<p class="hint">在另一台裝置打開同一個網址、貼上同一組權杖，兩邊就是同一份資料。</p>'+
+      '<div style="border-top:1px solid var(--lineSoft);margin-top:14px;padding-top:14px">'+
+      '<p class="hint" style="margin-top:0">同事名字（逗號分隔）。列在這裡的標籤會被當成「人」，顯示時不加 @。</p>'+
+      '<div class="editrow"><input id="ppl" type="text" style="flex:1" value="'+esc(PEOPLE.join(','))+'">'+
+      '<button class="primary" style="padding:6px 12px" onclick="savePeople()">儲存</button></div></div>';
+  }
+  document.getElementById('panel').innerHTML=h;
+}
+function bulkAdd(){
+  var raw=document.getElementById('bulk').value.split('\n')
+    .map(function(x){return x.trim()}).filter(function(x){return x});
+  var have=projects().map(function(p){return p.name});
+  var cmds=raw.filter(function(n){return have.indexOf(n)<0})
+    .map(function(n){return{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:PRE+n}}});
+  if(!cmds.length){alert('沒有需要新增的案子。');return}
+  closePanel();push(cmds);
+}
+function seedActions(){
+  var cmds=SEEDL.filter(function(n){return !S.labels.some(function(l){return l.name===n})})
+    .map(function(n){return{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}});
+  if(!cmds.length)return;
+  closePanel();push(cmds);
+}
+function newProject(){
+  var n=document.getElementById('np').value.trim();if(!n)return;
+  closePanel();push([{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:PRE+n}}]);
+}
+function savePeople(){
+  PEOPLE=document.getElementById('ppl').value.split(',').map(function(x){return x.trim()}).filter(function(x){return x});
+  try{localStorage.setItem('apl-people',JSON.stringify(PEOPLE))}catch(e){}
+  closePanel();render();
+}
+function logout(){localStorage.removeItem(TK);localStorage.removeItem(CK);token='';closePanel();showGate()}
+
+/* ══ 啟動 ══ */
+function showGate(){document.getElementById('gate').classList.add('on')}
+function hideGate(){document.getElementById('gate').classList.remove('on')}
+function connect(){
+  var v=document.getElementById('tokenin').value.trim();
+  if(!v){document.getElementById('err').textContent='請先貼上權杖。';return}
+  token=v;document.getElementById('err').textContent='驗證中…';
+  call({sync_token:'*',resource_types:'["labels"]'}).then(function(){
+    localStorage.setItem(TK,token);hideGate();S.syncToken='*';pull(true);
+  }).catch(function(e){
+    token='';document.getElementById('err').textContent=(e&&e.message)||'連接失敗。';
+  });
+}
+document.getElementById('pfilter').addEventListener('input',render);
+document.getElementById('draft').addEventListener('keydown',function(e){if(e.key==='Enter')addTask()});
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&token)pull(false)});
+
+restore();render();
+if(token)pull(true);else showGate();
+</script>
+</body>
+</html>
