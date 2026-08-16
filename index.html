@@ -509,7 +509,7 @@ function newProject(){
     alert('「'+n+'」這個案子已經存在了。');
     activeProject=full;view='all';showDone=false;closeSide();render();return;
   }
-  push([{type:'label_add',uuid:uuid(),args:{name:full}}]);
+  push([{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:full}}]);
   activeProject=full;view='all';showDone=false;
   closeSide();render();
 }
