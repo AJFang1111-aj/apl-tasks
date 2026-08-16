@@ -163,7 +163,7 @@ var TK='apl-todoist-token', CK='apl-cache-v2';
 var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var token=localStorage.getItem(TK)||'';
 
-var SEEDL=['報價','請款','等對方回覆','要問John','送審','文件用印','合約','資料準備','聯繫拜訪'];
+var SEEDL=['報價','請款','等對方回覆','待技術確認','送審','文件用印','合約','資料準備','聯繫拜訪'];
 var PEOPLE=[];try{PEOPLE=JSON.parse(localStorage.getItem('apl-people')||'[]')}catch(e){}
 var PAL=['#2C6E9B','#3C7A4E','#8A5A2B','#5B5570','#1E7A4F','#7A3B5B'];
 function pcolor(n){var h=0;for(var i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return PAL[h%PAL.length]}
