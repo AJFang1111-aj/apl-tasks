@@ -186,7 +186,7 @@ function pcolor(n){var h=0;for(var i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>
 function toUI(p){return 5-(p||1)}
 function toAPI(p){return 5-p}
 
-var S={items:[],labels:[],syncToken:'*'};
+var S={items:[],labels:[],projects:[],syncToken:'*'};
 var view='today',activeProject=null,activeLabels=[],showDone=false,editing=null,panelKind=null,busy=false;
 
 function uuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){
@@ -225,11 +225,11 @@ function pull(full){
   if(!token||busy)return Promise.resolve();
   busy=true;setStatus('同步中…','spin');
   var t=full?'*':(S.syncToken||'*');
-  return call({sync_token:t,resource_types:'["items","labels"]'}).then(function(d){
+  return call({sync_token:t,resource_types:'["items","labels","projects"]'}).then(function(d){
     if(d.full_sync||t==='*'){
-      S.items=d.items||[];S.labels=d.labels||[];
+      S.items=d.items||[];S.labels=d.labels||[];S.projects=d.projects||[];
     }else{
-      merge('items',d.items);merge('labels',d.labels);
+      merge('items',d.items);merge('labels',d.labels);merge('projects',d.projects);
     }
     S.syncToken=d.sync_token||S.syncToken;
     S.items=S.items.filter(function(i){return !i.is_deleted&&!i.checked||i.checked});
@@ -263,7 +263,7 @@ function fail(e){
   if(m.indexOf('權杖')>=0){localStorage.removeItem(TK);token='';showGate()}
 }
 function cache(){try{localStorage.setItem(CK,JSON.stringify(S))}catch(e){}}
-function restore(){try{var r=localStorage.getItem(CK);if(r)S=JSON.parse(r)}catch(e){}}
+function restore(){try{var r=localStorage.getItem(CK);if(r)S=JSON.parse(r)}catch(e){}if(!S.projects){S.projects=[];S.syncToken='*'}}
 
 /* ══ 案子（以標籤儲存）══ */
 function projects(){
@@ -280,6 +280,14 @@ function taskProject(it){
   return n||null;
 }
 function taskLabels(it){return (it.labels||[]).filter(function(x){return x.indexOf(PRE)!==0})}
+/* Todoist 專案名若以員工名開頭（如「YY」「Nelson 森哥」），該專案裡的任務也算是那位員工的 */
+function projPerson(it){
+  var p=null;S.projects.some(function(x){if(x.id===it.project_id){p=x;return true}return false});
+  if(!p)return null;
+  var pn=(p.name||'').trim();
+  return PEOPLE.filter(function(n){return pn===n||pn.indexOf(n+' ')===0||pn.indexOf(n)===0})[0]||null;
+}
+function hasPerson(it,n){return (it.labels||[]).indexOf(n)>=0||projPerson(it)===n}
 function pmeta(id){return{name:id?id.slice(PRE.length):''}}
 
 /* ══ 解析 ══ */
@@ -368,7 +376,7 @@ function visible(){
   }
   if(activeProject)out=out.filter(function(t){return (taskProject(t)||'none')===activeProject});
   if(activeLabels.length)out=out.filter(function(t){
-    return activeLabels.every(function(l){return (t.labels||[]).indexOf(l)>=0})});
+    return activeLabels.every(function(l){return PEOPLE.indexOf(l)>=0?hasPerson(t,l):(t.labels||[]).indexOf(l)>=0})});
   if(!showDone){
     var d;
     if(view==='today')out=out.filter(function(t){d=dueOf(t);return d&&d<=TODAY});
@@ -429,6 +437,7 @@ function rowHTML(t){
       (d?'<span class="'+(late?'late':'')+'">'+dayLabel(d)+'</span>':'')+
       (pj?'<span style="color:'+pcolor(pmeta(pj).name)+'">'+esc(pmeta(pj).name)+'</span>':'')+
       taskLabels(t).map(function(l){return '<span>@'+esc(l)+'</span>'}).join('')+
+      (function(){var pp=projPerson(t);return pp&&(t.labels||[]).indexOf(pp)<0?'<span title="來自 Todoist 專案「'+esc(pp)+'」">@'+esc(pp)+'</span>':''})()+
     '</div>';
   if(editing===t.id){
     h+='<div class="edit">'+
