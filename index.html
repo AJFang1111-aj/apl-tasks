@@ -174,6 +174,8 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 var API='https://api.todoist.com/api/v1/sync';
 var TK='apl-todoist-token', CK='apl-cache-v2';
 var PRE='案-';                      /* 案子以標籤儲存的前綴 */
+var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
+function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
 
 var SEEDL=['報價','請款','等對方回覆','待技術確認','送審','文件用印','合約','資料準備','聯繫拜訪'];
@@ -271,15 +273,20 @@ function projects(){
     .map(function(l){var n=l.name.slice(PRE.length);return{id:l.name,name:n}})
     .sort(function(a,b){return a.name<b.name?-1:1});
 }
+function archivedProjects(){
+  return S.labels.filter(function(l){return l.name.indexOf(ARC)===0})
+    .map(function(l){var n=l.name.slice(ARC.length);return{id:l.name,name:n}})
+    .sort(function(a,b){return a.name<b.name?-1:1});
+}
 function actionLabels(){
-  return S.labels.filter(function(l){return l.name.indexOf(PRE)!==0})
+  return S.labels.filter(function(l){return !isProjLabel(l.name)})
     .map(function(l){return{id:l.name,name:l.name,type:PEOPLE.indexOf(l.name)>=0?'person':'action'}});
 }
 function taskProject(it){
-  var n=(it.labels||[]).filter(function(x){return x.indexOf(PRE)===0})[0];
+  var n=(it.labels||[]).filter(isProjLabel)[0];
   return n||null;
 }
-function taskLabels(it){return (it.labels||[]).filter(function(x){return x.indexOf(PRE)!==0})}
+function taskLabels(it){return (it.labels||[]).filter(function(x){return !isProjLabel(x)})}
 /* Todoist 專案名若以員工名開頭（如「YY」「Nelson 森哥」），該專案裡的任務也算是那位員工的 */
 function projPerson(it){
   var p=null;S.projects.some(function(x){if(x.id===it.project_id){p=x;return true}return false});
@@ -288,7 +295,12 @@ function projPerson(it){
   return PEOPLE.filter(function(n){return pn===n||pn.indexOf(n+' ')===0||pn.indexOf(n)===0})[0]||null;
 }
 function hasPerson(it,n){return (it.labels||[]).indexOf(n)>=0||projPerson(it)===n}
-function pmeta(id){return{name:id?id.slice(PRE.length):''}}
+function pmeta(id){
+  if(!id)return{name:'',archived:false};
+  var a=id.indexOf(ARC)===0;
+  return{name:id.slice((a?ARC:PRE).length),archived:a};
+}
+function openCount(full){return S.items.filter(function(t){return !t.checked&&taskProject(t)===full}).length}
 
 /* ══ 解析 ══ */
 function parseInput(raw){
@@ -410,7 +422,7 @@ function render(){
 
   var vs=visible();
   document.getElementById('title').textContent=
-    qval()?'搜尋「'+qval()+'」':showDone?'已完成':activeProject?(activeProject==='none'?'未分案':pmeta(activeProject).name):VIEWS.filter(function(v){return v[0]===view})[0][1];
+    qval()?'搜尋「'+qval()+'」':showDone?'已完成':activeProject?(activeProject==='none'?'未分案':pmeta(activeProject).name+(pmeta(activeProject).archived?'（已封存）':'')):VIEWS.filter(function(v){return v[0]===view})[0][1];
   document.getElementById('count').textContent=vs.length+' 筆';
 
   var chipHtml=function(l){
@@ -435,7 +447,7 @@ function rowHTML(t){
     '<div class="body"><div class="txt'+(t.checked?' done':'')+'" onclick="toggleEdit(\''+t.id+'\')">'+esc(t.content)+'</div>'+
     '<div class="meta"><span style="color:'+PC[ui]+'">P'+ui+'</span>'+
       (d?'<span class="'+(late?'late':'')+'">'+dayLabel(d)+'</span>':'')+
-      (pj?'<span style="color:'+pcolor(pmeta(pj).name)+'">'+esc(pmeta(pj).name)+'</span>':'')+
+      (pj?'<span style="color:'+pcolor(pmeta(pj).name)+'">'+esc(pmeta(pj).name)+(pmeta(pj).archived?'<span style="color:var(--ink45)">（封存）</span>':'')+'</span>':'')+
       taskLabels(t).map(function(l){return '<span>@'+esc(l)+'</span>'}).join('')+
       (function(){var pp=projPerson(t);return pp&&(t.labels||[]).indexOf(pp)<0?'<span title="來自 Todoist 專案「'+esc(pp)+'」">@'+esc(pp)+'</span>':''})()+
     '</div>';
@@ -482,12 +494,26 @@ function renderPanel(){
       '</div>';
     var ps=projects();
     h+= ps.length? ps.map(function(p){
+      var oc=openCount(p.id);
       return '<div class="item"><span class="dot" style="background:'+pcolor(p.name)+'"></span>'+
-        '<span style="flex:1">'+esc(p.name)+'</span>'+
+        '<span style="flex:1">'+esc(p.name)+' <span class="tiny">'+(oc?oc+' 筆未完成':'無未完成')+'</span></span>'+
         '<button class="link" onclick="renameProject(\''+esc(p.id)+'\')">改名</button>'+
+        '<button class="link" onclick="archiveProject(\''+esc(p.id)+'\')">封存</button>'+
         '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+esc(p.id)+'\')">刪除</button></div>';
     }).join('') : '<p class="hint" style="margin-top:0">目前還沒有案子。</p>';
-    h+='<p class="hint">改名會自動更新所有已掛這個案子的任務；刪除只移除案子標記，任務本身不會被刪。</p>';
+    h+='<p class="hint">改名會自動更新所有已掛這個案子的任務；封存＝結案，案子從左側清單消失但任務全部保留（可復原）；刪除只移除案子標記，任務本身不會被刪。</p>';
+    var as=archivedProjects();
+    if(as.length){
+      h+='<div style="border-top:1px solid var(--lineSoft);margin-top:14px;padding-top:12px"><p class="hint" style="margin-top:0">已封存（'+as.length+'）</p>'+
+        as.map(function(p){
+          var oc=openCount(p.id);
+          return '<div class="item"><span class="dot" style="background:var(--line)"></span>'+
+            '<span style="flex:1;color:var(--ink70)">'+esc(p.name)+' <span class="tiny">'+(oc?oc+' 筆未完成':'')+'</span></span>'+
+            '<button class="link" onclick="pickProject(\''+esc(p.id)+'\');closePanel()">檢視</button>'+
+            '<button class="link" onclick="restoreProject(\''+esc(p.id)+'\')">復原</button>'+
+            '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+esc(p.id)+'\')">刪除</button></div>';
+        }).join('')+'</div>';
+    }
   }
   if(panelKind==='settings'){
     h+='<p class="hint" style="margin-top:0">資料存在你的 Todoist 帳號，這個檔案本身不保存任何任務。</p>'+
@@ -535,24 +561,47 @@ function newProject(){
     alert('「'+n+'」這個案子已經存在了。');
     activeProject=full;view='all';showDone=false;closeSide();render();return;
   }
+  if(S.labels.some(function(l){return l.name===ARC+n})){
+    if(confirm('「'+n+'」是已封存的案子，要復原它嗎？'))restoreProject(ARC+n);
+    return;
+  }
   push([{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:full}}]);
   activeProject=full;view='all';showDone=false;
   closeSide();render();
 }
 function renameProject(full){
-  var cur=full.slice(PRE.length);
+  var m=pmeta(full),cur=m.name,pre=m.archived?ARC:PRE;
   var n=prompt('案子改名：',cur);
   if(n==null)return;
   n=n.trim();
   if(!n||n===cur)return;
   var id=labelIdByName(full);
   if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
-  if(activeProject===full)activeProject=PRE+n;
+  if(activeProject===full)activeProject=pre+n;
   closePanel();
-  push([{type:'label_update',uuid:uuid(),args:{id:id,name:PRE+n}}]);
+  push([{type:'label_update',uuid:uuid(),args:{id:id,name:pre+n}}]);
+}
+function archiveProject(full){
+  var nm=pmeta(full).name,oc=openCount(full);
+  var msg='結案封存「'+nm+'」？\n'+(oc?'⚠️ 還有 '+oc+' 筆未完成任務，會一起被封存（不會刪除、不會完成）。\n':'')+'封存後案子從左側消失，任務全部保留；隨時可在「管理」→「已封存」復原。';
+  if(!confirm(msg))return;
+  var id=labelIdByName(full);
+  if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
+  if(activeProject===full)activeProject=null;
+  closePanel();
+  push([{type:'label_update',uuid:uuid(),args:{id:id,name:ARC+nm}}]);
+}
+function restoreProject(full){
+  var nm=pmeta(full).name;
+  var id=labelIdByName(full);
+  if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
+  if(S.labels.some(function(l){return l.name===PRE+nm})){alert('已經有一個進行中的「'+nm+'」，請先改名再復原。');return}
+  if(activeProject===full)activeProject=PRE+nm;
+  closePanel();
+  push([{type:'label_update',uuid:uuid(),args:{id:id,name:PRE+nm}}]);
 }
 function deleteProject(full){
-  var nm=full.slice(PRE.length);
+  var nm=pmeta(full).name;
   if(!confirm('刪除案子「'+nm+'」？\n掛在這個案子的任務不會被刪，只會變成未分案。'))return;
   var id=labelIdByName(full);
   if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
