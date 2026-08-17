@@ -629,10 +629,26 @@ function connect(){
     token='';document.getElementById('err').textContent=(e&&e.message)||'連接失敗。';
   });
 }
-document.getElementById('pfilter').addEventListener('input',render);
-document.getElementById('q').addEventListener('input',render);
+/* 中文輸入法：組字（選字）期間的 Enter / input 事件不算數，避免選字一確認就送出、或搜尋框每個注音都重繪 */
+function imeTrack(el){
+  el._ime=false;el._imeEndAt=0;
+  el.addEventListener('compositionstart',function(){el._ime=true});
+  el.addEventListener('compositionend',function(){el._ime=false;el._imeEndAt=Date.now()});
+}
+function imeBusy(el,e){
+  return el._ime||(e&&(e.isComposing||e.keyCode===229))||(Date.now()-el._imeEndAt<60);
+}
+['pfilter','q','draft'].forEach(function(id){imeTrack(document.getElementById(id))});
+document.getElementById('pfilter').addEventListener('input',function(){if(!this._ime)render()});
+document.getElementById('q').addEventListener('input',function(){if(!this._ime)render()});
+document.getElementById('q').addEventListener('compositionend',render);
+document.getElementById('pfilter').addEventListener('compositionend',render);
 document.getElementById('q').addEventListener('keydown',function(e){if(e.key==='Escape'){this.value='';render()}});
-document.getElementById('draft').addEventListener('keydown',function(e){if(e.key==='Enter')addTask()});
+document.getElementById('draft').addEventListener('keydown',function(e){
+  if(e.key!=='Enter')return;
+  if(imeBusy(this,e))return;      /* 這個 Enter 是在確認選字，不是要送出 */
+  e.preventDefault();addTask();
+});
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&token)pull(false)});
 
 restore();render();
