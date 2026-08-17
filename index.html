@@ -329,11 +329,25 @@ function addTask(){
   push([{type:'item_add',temp_id:uuid(),uuid:uuid(),args:args}]);
   el.focus();
 }
+/* 樂觀更新：先改本機資料立刻重繪，再背景送 Todoist（push 成功後會 pull 對齊；失敗會 pull(true) 還原） */
+function local(id,patch){
+  var it=S.items.filter(function(x){return x.id===id})[0];if(!it)return null;
+  Object.keys(patch).forEach(function(k){it[k]=patch[k]});
+  cache();render();return it;
+}
 function toggle(id){
   var it=S.items.filter(function(x){return x.id===id})[0];if(!it)return;
-  push([{type:it.checked?'item_uncomplete':'item_complete',uuid:uuid(),args:{id:id}}]);
+  var done=!it.checked;
+  local(id,{checked:done});
+  push([{type:done?'item_complete':'item_uncomplete',uuid:uuid(),args:{id:id}}]);
 }
-function upd(id,args){args.id=id;push([{type:'item_update',uuid:uuid(),args:args}])}
+function upd(id,args){
+  var patch={};
+  ['content','description','labels','priority'].forEach(function(k){if(k in args)patch[k]=args[k]});
+  if('due' in args)patch.due=args.due;
+  local(id,patch);
+  args.id=id;push([{type:'item_update',uuid:uuid(),args:args}]);
+}
 function setDue(id,v){upd(id,{due:v?{date:v}:null})}
 function setPri(id,v){upd(id,{priority:toAPI(+v)})}
 var dragId=null;
@@ -354,7 +368,9 @@ function toggleTaskLabel(id,name){
 }
 function delTask(id){
   if(!confirm('刪除這筆任務？Todoist 那邊也會一起刪除。'))return;
-  editing=null;push([{type:'item_delete',uuid:uuid(),args:{id:id}}]);
+  editing=null;
+  S.items=S.items.filter(function(x){return x.id!==id});cache();render();
+  push([{type:'item_delete',uuid:uuid(),args:{id:id}}]);
 }
 function setView(v){view=v;showDone=false;activeProject=null;closeSide();render()}
 function pickProject(id){activeProject=id;showDone=false;view='all';closeSide();render()}
