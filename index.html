@@ -289,8 +289,9 @@ function archivedProjects(){
     .sort(function(a,b){return a.name<b.name?-1:1});
 }
 function actionLabels(){
-  return labelNames(function(n){return !isProjLabel(n)})
-    .map(function(n){return{id:n,name:n,type:PEOPLE.indexOf(n)>=0?'person':'action'}});
+  var names=labelNames(function(n){return !isProjLabel(n)});
+  PEOPLE.forEach(function(p){if(names.indexOf(p)<0)names.push(p)});  /* 名單上的人就算還沒有標籤也要出現 */
+  return names.map(function(n){return{id:n,name:n,type:PEOPLE.indexOf(n)>=0?'person':'action'}});
 }
 function taskProject(it){
   var n=(it.labels||[]).filter(isProjLabel)[0];
@@ -648,6 +649,9 @@ function deleteProject(full){
 function savePeople(){
   PEOPLE=document.getElementById('ppl').value.split(',').map(function(x){return x.trim()}).filter(function(x){return x});
   try{localStorage.setItem('apl-people',JSON.stringify(PEOPLE))}catch(e){}
+  /* 名單上還沒有對應 Todoist 標籤的人，順手建立標籤，之後才能掛到任務上 */
+  var miss=PEOPLE.filter(function(n){return !S.labels.some(function(l){return l.name===n})});
+  if(miss.length)push(miss.map(function(n){return{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}}));
   closePanel();render();
 }
 function logout(){localStorage.removeItem(TK);localStorage.removeItem(CK);token='';closePanel();showGate()}
