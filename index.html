@@ -267,20 +267,30 @@ function fail(e){
 function cache(){try{localStorage.setItem(CK,JSON.stringify(S))}catch(e){}}
 function restore(){try{var r=localStorage.getItem(CK);if(r)S=JSON.parse(r)}catch(e){}if(!S.projects){S.projects=[];S.syncToken='*'}}
 
-/* ══ 案子（以標籤儲存）══ */
+/* ══ 案子（以標籤儲存）══
+   標籤來源＝個人標籤 ∪ 任務上實際出現的標籤：
+   共享專案的協作者沒有擁有者的個人標籤（Todoist 只給 shared label 名稱），
+   取聯集後每個人看到的案子清單才一致。 */
+function labelNames(pred){
+  var seen={},out=[];
+  function add(n){if(pred(n)&&!seen[n]){seen[n]=1;out.push(n)}}
+  S.labels.forEach(function(l){add(l.name)});
+  S.items.forEach(function(t){(t.labels||[]).forEach(add)});
+  return out;
+}
 function projects(){
-  return S.labels.filter(function(l){return l.name.indexOf(PRE)===0})
-    .map(function(l){var n=l.name.slice(PRE.length);return{id:l.name,name:n}})
+  return labelNames(function(n){return n.indexOf(PRE)===0})
+    .map(function(n){return{id:n,name:n.slice(PRE.length)}})
     .sort(function(a,b){return a.name<b.name?-1:1});
 }
 function archivedProjects(){
-  return S.labels.filter(function(l){return l.name.indexOf(ARC)===0})
-    .map(function(l){var n=l.name.slice(ARC.length);return{id:l.name,name:n}})
+  return labelNames(function(n){return n.indexOf(ARC)===0})
+    .map(function(n){return{id:n,name:n.slice(ARC.length)}})
     .sort(function(a,b){return a.name<b.name?-1:1});
 }
 function actionLabels(){
-  return S.labels.filter(function(l){return !isProjLabel(l.name)})
-    .map(function(l){return{id:l.name,name:l.name,type:PEOPLE.indexOf(l.name)>=0?'person':'action'}});
+  return labelNames(function(n){return !isProjLabel(n)})
+    .map(function(n){return{id:n,name:n,type:PEOPLE.indexOf(n)>=0?'person':'action'}});
 }
 function taskProject(it){
   var n=(it.labels||[]).filter(isProjLabel)[0];
@@ -325,9 +335,19 @@ function addTask(){
   var d=due.value||(view==='today'?TODAY:'');
   var args={content:p.content,labels:labels,priority:toAPI(p.pri)};
   if(d)args.due={date:d};
+  var home=homeProjectId();if(home)args.project_id=home;
   el.value='';due.value='';
   push([{type:'item_add',temp_id:uuid(),uuid:uuid(),args:args}]);
   el.focus();
+}
+/* 新任務要放進大家共用的 Todoist 專案，夥伴才看得到：
+   優先取共享專案；還沒開始共享時取任務最多的那個專案（目前＝專案追蹤），避免散進各自的收件匣 */
+function homeProjectId(){
+  var sh=S.projects.filter(function(p){return p.shared&&!p.inbox_project})[0];
+  if(sh)return sh.id;
+  var cnt={};S.items.forEach(function(t){cnt[t.project_id]=(cnt[t.project_id]||0)+1});
+  var best=null;S.projects.forEach(function(p){if(!p.inbox_project&&(cnt[p.id]||0)>((best&&cnt[best.id])||0))best=p});
+  return best?best.id:null;
 }
 /* 樂觀更新：先改本機資料立刻重繪，再背景送 Todoist（push 成功後會 pull 對齊；失敗會 pull(true) 還原） */
 function local(id,patch){
