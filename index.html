@@ -519,7 +519,7 @@ function rowHTML(t){
 function openPanel(k){panelKind=k;document.getElementById('mask').classList.add('on');closeSide();renderPanel()}
 function closePanel(){panelKind=null;document.getElementById('mask').classList.remove('on')}
 function renderPanel(){
-  var t={projects:'管理案子',settings:'設定'}[panelKind];
+  var t={projects:'管理案子與標籤',settings:'設定'}[panelKind];
   var h='<div class="ph"><h2>'+t+'</h2><button class="link" onclick="closePanel()">關閉</button></div>';
   if(panelKind==='projects'){
     var missL=SEEDL.filter(function(n){return !S.labels.some(function(l){return l.name===n})});
@@ -551,6 +551,18 @@ function renderPanel(){
             '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+esc(p.id)+'\')">刪除</button></div>';
         }).join('')+'</div>';
     }
+    var acts=actionLabels().filter(function(l){return l.type!=='person'});
+    h+='<div style="border-top:1px solid var(--lineSoft);margin-top:14px;padding-top:12px">'+
+      '<p class="hint" style="margin-top:0">動作標籤（員工名單在「設定」裡改）</p>'+
+      '<div class="editrow" style="margin:0 0 10px"><input id="na" type="text" placeholder="新增動作標籤" style="flex:1">'+
+      '<button class="primary" style="padding:6px 12px" onclick="newAction()">新增</button></div>'+
+      acts.map(function(l){
+        var uc=labelUseCount(l.name);
+        return '<div class="item"><span style="flex:1">@'+esc(l.name)+' <span class="tiny">'+(uc?uc+' 筆未完成':'沒有任務在用')+'</span></span>'+
+          '<button class="link" onclick="renameAction(\''+esc(l.name)+'\')">改名</button>'+
+          '<button class="link" style="color:var(--danger)" onclick="deleteAction(\''+esc(l.name)+'\')">刪除</button></div>';
+      }).join('')+
+      '<p class="hint">改名會更新所有掛著它的任務；刪除會把標籤從所有任務上拿掉，任務本身不會被刪。</p></div>';
   }
   if(panelKind==='settings'){
     h+='<p class="hint" style="margin-top:0">資料存在你的 Todoist 帳號，這個檔案本身不保存任何任務。</p>'+
@@ -586,6 +598,34 @@ function newProject(){
   closePanel();push([{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:PRE+n}}]);
 }
 function labelIdByName(n){var l=S.labels.filter(function(x){return x.name===n})[0];return l?l.id:null}
+function labelUseCount(n){return S.items.filter(function(t){return !t.checked&&(t.labels||[]).indexOf(n)>=0}).length}
+/* ══ 動作標籤管理 ══
+   個人標籤走 label_update/label_delete；只存在於任務上的共享標籤（自己沒有同名個人標籤）
+   走 label_rename / label_delete_occurrences，兩者都會同步更新所有任務。 */
+function newAction(){
+  var n=prompt('新增動作標籤：');if(n==null)return;n=n.trim();if(!n)return;
+  if(isProjLabel(n)){alert('動作標籤不能用 案-／封存- 開頭，那是案子專用的。');return}
+  if(S.labels.some(function(l){return l.name===n})||PEOPLE.indexOf(n)>=0){alert('「'+n+'」已經存在了。');return}
+  closePanel();
+  push([{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}]);
+}
+function renameAction(old){
+  var n=prompt('動作標籤改名：',old);if(n==null)return;n=n.trim();if(!n||n===old)return;
+  if(isProjLabel(n)){alert('動作標籤不能用 案-／封存- 開頭。');return}
+  var id=labelIdByName(old);
+  closePanel();
+  push([id?{type:'label_update',uuid:uuid(),args:{id:id,name:n}}
+         :{type:'label_rename',uuid:uuid(),args:{name_old:old,name_new:n}}]);
+}
+function deleteAction(name){
+  var uc=labelUseCount(name);
+  if(!confirm('刪除動作標籤「'+name+'」？\n會從'+(uc?' '+uc+' 筆未完成':'所有')+'任務上移除，任務本身不會被刪。'))return;
+  var id=labelIdByName(name);
+  closePanel();
+  var cmds=[{type:'label_delete_occurrences',uuid:uuid(),args:{name:name}}];
+  if(id)cmds.push({type:'label_delete',uuid:uuid(),args:{id:id}});
+  push(cmds);
+}
 function newProject(){
   var n=prompt('新增案子名稱：');
   if(n==null)return;
