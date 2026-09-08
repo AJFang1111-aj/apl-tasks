@@ -55,7 +55,13 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 #count{font-size:12px;color:var(--ink45)}
 #zones{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-left:auto}
 .zone{border:1px solid var(--line);border-radius:8px;padding:5px 8px 6px;min-width:120px}
-.ztitle{font-size:11px;color:var(--ink45);margin-bottom:4px;letter-spacing:.02em}
+.ztitle{font-size:11px;color:var(--ink45);margin-bottom:4px;letter-spacing:.02em;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ztitle .zt-act{display:flex;gap:8px}
+.ztitle .zt-act button{font-size:12px;color:var(--ink45);line-height:1}
+.ztitle .zt-act button.on{color:var(--accent)}
+.chip.cedit{display:inline-flex;align-items:center;gap:5px;border-style:dashed}
+.chip.cedit button{font-size:12px;color:var(--ink70)}
+.chip.cedit .cx{color:var(--danger);font-weight:600;padding:0 1px}
 .zchips{display:flex;flex-wrap:wrap;gap:4px}
 #zclear{width:100%;text-align:right;font-size:12px}
 #zclear:empty{display:none}
@@ -154,8 +160,8 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
       <div style="padding:6px 0 0"><input id="q" type="search" placeholder="搜尋任務關鍵字…（跨全部任務，Esc 清除）" style="width:100%;max-width:440px;font-size:14px;padding:7px 10px;background:var(--bg)"></div>
     </div>
     <div id="zones">
-      <div class="zone"><div class="ztitle">員工</div><div class="zchips" id="chipsP"></div></div>
-      <div class="zone"><div class="ztitle">動作</div><div class="zchips" id="chipsA"></div></div>
+      <div class="zone"><div class="ztitle">員工<span class="zt-act"><button onclick="newPerson()" title="新增員工">＋</button><button id="zeP" onclick="toggleZedit('P')" title="編輯員工">✎</button></span></div><div class="zchips" id="chipsP"></div></div>
+      <div class="zone"><div class="ztitle">動作<span class="zt-act"><button onclick="newAction()" title="新增動作標籤">＋</button><button id="zeA" onclick="toggleZedit('A')" title="編輯動作標籤">✎</button></span></div><div class="zchips" id="chipsA"></div></div>
       <div id="zclear"></div>
     </div>
   </header>
@@ -190,6 +196,8 @@ function toAPI(p){return 5-p}
 
 var S={items:[],labels:[],projects:[],syncToken:'*'};
 var view='today',activeProject=null,activeLabels=[],showDone=false,editing=null,panelKind=null,busy=false;
+var zedit={P:false,A:false};        /* 右上角員工／動作區的編輯模式 */
+function toggleZedit(z){zedit[z]=!zedit[z];render()}
 
 function uuid(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){
   var r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16)})}
@@ -467,10 +475,17 @@ function render(){
       return '<button class="chip '+l.type+(on?' on':'')+'" onclick="toggleChip(\''+esc(l.name)+'\')">'+
         (l.type==='person'?'':'@')+esc(l.name)+'</button>';
     };
+  var chipEditHtml=function(l){
+      var rn=l.type==='person'?'renamePerson':'renameAction', dl=l.type==='person'?'delPerson':'deleteAction';
+      return '<span class="chip cedit"><button onclick="'+rn+'(\''+esc(l.name)+'\')" title="改名">'+esc(l.name)+'</button>'+
+        '<button class="cx" onclick="'+dl+'(\''+esc(l.name)+'\')" title="刪除">×</button></span>';
+    };
   var als=actionLabels();
   var pp=als.filter(function(l){return l.type==='person'}), aa=als.filter(function(l){return l.type!=='person'});
-  document.getElementById('chipsP').innerHTML=pp.length?pp.map(chipHtml).join(''):'<span class="chip" style="border-style:dashed">（設定裡填員工）</span>';
-  document.getElementById('chipsA').innerHTML=aa.map(chipHtml).join('');
+  document.getElementById('chipsP').innerHTML=pp.length?pp.map(zedit.P?chipEditHtml:chipHtml).join(''):'<span class="chip" style="border-style:dashed">（按＋新增員工）</span>';
+  document.getElementById('chipsA').innerHTML=aa.map(zedit.A?chipEditHtml:chipHtml).join('');
+  document.getElementById('zeP').className=zedit.P?'on':'';
+  document.getElementById('zeA').className=zedit.A?'on':'';
   document.getElementById('zclear').innerHTML=activeLabels.length?'<button class="link" onclick="activeLabels=[];render()">清除篩選</button>':'';
 
   document.getElementById('list').innerHTML=vs.length?vs.map(rowHTML).join(''):
@@ -613,6 +628,7 @@ function renameAction(old){
   var n=prompt('動作標籤改名：',old);if(n==null)return;n=n.trim();if(!n||n===old)return;
   if(isProjLabel(n)){alert('動作標籤不能用 案-／封存- 開頭。');return}
   var id=labelIdByName(old);
+  var ai=activeLabels.indexOf(old);if(ai>=0)activeLabels[ai]=n;
   closePanel();
   push([id?{type:'label_update',uuid:uuid(),args:{id:id,name:n}}
          :{type:'label_rename',uuid:uuid(),args:{name_old:old,name_new:n}}]);
@@ -620,6 +636,7 @@ function renameAction(old){
 function deleteAction(name){
   var uc=labelUseCount(name);
   if(!confirm('刪除動作標籤「'+name+'」？\n會從'+(uc?' '+uc+' 筆未完成':'所有')+'任務上移除，任務本身不會被刪。'))return;
+  var ai=activeLabels.indexOf(name);if(ai>=0)activeLabels.splice(ai,1);
   var id=labelIdByName(name);
   closePanel();
   var cmds=[{type:'label_delete_occurrences',uuid:uuid(),args:{name:name}}];
@@ -693,6 +710,38 @@ function savePeople(){
   var miss=PEOPLE.filter(function(n){return !S.labels.some(function(l){return l.name===n})});
   if(miss.length)push(miss.map(function(n){return{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}}));
   closePanel();render();
+}
+/* ══ 員工管理（右上角區塊）══
+   名單存本機（apl-people），標籤存 Todoist；改名／刪除會同步更新所有任務上的標籤。 */
+function persistPeople(){try{localStorage.setItem('apl-people',JSON.stringify(PEOPLE))}catch(e){}}
+function newPerson(){
+  var n=prompt('新增員工：');if(n==null)return;n=n.trim();if(!n)return;
+  if(isProjLabel(n)){alert('員工名稱不能用 案-／封存- 開頭，那是案子專用的。');return}
+  if(PEOPLE.indexOf(n)>=0){alert('「'+n+'」已經在名單裡了。');return}
+  PEOPLE.push(n);persistPeople();
+  if(!S.labels.some(function(l){return l.name===n}))
+    push([{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}]);
+  else render();
+}
+function renamePerson(old){
+  var n=prompt('員工改名：',old);if(n==null)return;n=n.trim();if(!n||n===old)return;
+  if(isProjLabel(n)){alert('員工名稱不能用 案-／封存- 開頭。');return}
+  if(PEOPLE.indexOf(n)>=0){alert('「'+n+'」已經在名單裡了。');return}
+  var i=PEOPLE.indexOf(old);if(i>=0)PEOPLE[i]=n;persistPeople();
+  var ai=activeLabels.indexOf(old);if(ai>=0)activeLabels[ai]=n;
+  var id=labelIdByName(old);
+  push([id?{type:'label_update',uuid:uuid(),args:{id:id,name:n}}
+         :{type:'label_rename',uuid:uuid(),args:{name_old:old,name_new:n}}]);
+}
+function delPerson(name){
+  var uc=labelUseCount(name);
+  if(!confirm('把「'+name+'」從員工名單移除？\n標籤會從'+(uc?' '+uc+' 筆未完成':'所有')+'任務上一併移除，任務本身不會被刪。'))return;
+  PEOPLE=PEOPLE.filter(function(x){return x!==name});persistPeople();
+  var ai=activeLabels.indexOf(name);if(ai>=0)activeLabels.splice(ai,1);
+  var id=labelIdByName(name);
+  var cmds=[{type:'label_delete_occurrences',uuid:uuid(),args:{name:name}}];
+  if(id)cmds.push({type:'label_delete',uuid:uuid(),args:{id:id}});
+  push(cmds);
 }
 function logout(){localStorage.removeItem(TK);localStorage.removeItem(CK);token='';closePanel();showGate()}
 
