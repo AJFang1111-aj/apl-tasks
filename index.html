@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow,noarchive">
 <meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.todoist.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="任務台">
@@ -214,6 +215,10 @@ function dayLabel(due){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
   return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+/* 放進 onclick="fn('…')" 的字串：先做 JS 跳脫再做 HTML 跳脫。
+   標籤名稱由共享專案的任何協作者控制，只用 esc() 的話單引號會跳出字串變成可執行程式碼。 */
+function jsa(s){return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")
+  .replace(/\r/g,'\\r').replace(/\n/g,'\\n').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029'))}
 function setStatus(t,cls){var e=document.getElementById('status');if(e){e.textContent=t;e.className=cls||'tiny'}}
 
 /* ══ API ══ */
@@ -460,7 +465,7 @@ function render(){
   document.getElementById('projlist').innerHTML=
     '<button class="navbtn'+(activeProject==='none'?' on':'')+'" onclick="pickProject(\'none\')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropT(event,\'\')" title="把任務拖到這裡＝移出案子"><span class="nm">未分案</span><span class="n">'+(open['none']||'')+'</span></button>'+
     projects().filter(function(p){return p.name.toLowerCase().indexOf(f)>=0}).map(function(p){
-      return '<button class="navbtn'+(activeProject===p.id?' on':'')+'" onclick="pickProject(\''+esc(p.id)+'\')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropT(event,\''+esc(p.id)+'\')" title="把任務拖到這裡歸入此案">'+
+      return '<button class="navbtn'+(activeProject===p.id?' on':'')+'" onclick="pickProject(\''+jsa(p.id)+'\')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropT(event,\''+jsa(p.id)+'\')" title="把任務拖到這裡歸入此案">'+
         '<span class="dot" style="background:'+pcolor(p.name)+'"></span><span class="nm">'+esc(p.name)+
         '</span><span class="n">'+(open[p.id]||'')+'</span></button>';
     }).join('');
@@ -472,13 +477,13 @@ function render(){
 
   var chipHtml=function(l){
       var on=activeLabels.indexOf(l.name)>=0;
-      return '<button class="chip '+l.type+(on?' on':'')+'" onclick="toggleChip(\''+esc(l.name)+'\')">'+
+      return '<button class="chip '+l.type+(on?' on':'')+'" onclick="toggleChip(\''+jsa(l.name)+'\')">'+
         (l.type==='person'?'':'@')+esc(l.name)+'</button>';
     };
   var chipEditHtml=function(l){
       var rn=l.type==='person'?'renamePerson':'renameAction', dl=l.type==='person'?'delPerson':'deleteAction';
-      return '<span class="chip cedit"><button onclick="'+rn+'(\''+esc(l.name)+'\')" title="改名">'+esc(l.name)+'</button>'+
-        '<button class="cx" onclick="'+dl+'(\''+esc(l.name)+'\')" title="刪除">×</button></span>';
+      return '<span class="chip cedit"><button onclick="'+rn+'(\''+jsa(l.name)+'\')" title="改名">'+esc(l.name)+'</button>'+
+        '<button class="cx" onclick="'+dl+'(\''+jsa(l.name)+'\')" title="刪除">×</button></span>';
     };
   var als=actionLabels();
   var pp=als.filter(function(l){return l.type==='person'}), aa=als.filter(function(l){return l.type!=='person'});
@@ -521,7 +526,7 @@ function rowHTML(t){
       '<div style="display:flex;flex-wrap:wrap;gap:4px">'+
         actionLabels().map(function(l){
           var on=(t.labels||[]).indexOf(l.name)>=0;
-          return '<button class="chip'+(on?' on':'')+'" onclick="toggleTaskLabel(\''+t.id+'\',\''+esc(l.name)+'\')">'+esc(l.name)+'</button>';
+          return '<button class="chip'+(on?' on':'')+'" onclick="toggleTaskLabel(\''+t.id+'\',\''+jsa(l.name)+'\')">'+esc(l.name)+'</button>';
         }).join('')+
       '</div></div>';
   }else if(t.description){
@@ -549,9 +554,9 @@ function renderPanel(){
       var oc=openCount(p.id);
       return '<div class="item"><span class="dot" style="background:'+pcolor(p.name)+'"></span>'+
         '<span style="flex:1">'+esc(p.name)+' <span class="tiny">'+(oc?oc+' 筆未完成':'無未完成')+'</span></span>'+
-        '<button class="link" onclick="renameProject(\''+esc(p.id)+'\')">改名</button>'+
-        '<button class="link" onclick="archiveProject(\''+esc(p.id)+'\')">封存</button>'+
-        '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+esc(p.id)+'\')">刪除</button></div>';
+        '<button class="link" onclick="renameProject(\''+jsa(p.id)+'\')">改名</button>'+
+        '<button class="link" onclick="archiveProject(\''+jsa(p.id)+'\')">封存</button>'+
+        '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+jsa(p.id)+'\')">刪除</button></div>';
     }).join('') : '<p class="hint" style="margin-top:0">目前還沒有案子。</p>';
     h+='<p class="hint">改名會自動更新所有已掛這個案子的任務；封存＝結案，案子從左側清單消失但任務全部保留（可復原）；刪除只移除案子標記，任務本身不會被刪。</p>';
     var as=archivedProjects();
@@ -561,9 +566,9 @@ function renderPanel(){
           var oc=openCount(p.id);
           return '<div class="item"><span class="dot" style="background:var(--line)"></span>'+
             '<span style="flex:1;color:var(--ink70)">'+esc(p.name)+' <span class="tiny">'+(oc?oc+' 筆未完成':'')+'</span></span>'+
-            '<button class="link" onclick="pickProject(\''+esc(p.id)+'\');closePanel()">檢視</button>'+
-            '<button class="link" onclick="restoreProject(\''+esc(p.id)+'\')">復原</button>'+
-            '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+esc(p.id)+'\')">刪除</button></div>';
+            '<button class="link" onclick="pickProject(\''+jsa(p.id)+'\');closePanel()">檢視</button>'+
+            '<button class="link" onclick="restoreProject(\''+jsa(p.id)+'\')">復原</button>'+
+            '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+jsa(p.id)+'\')">刪除</button></div>';
         }).join('')+'</div>';
     }
     var acts=actionLabels().filter(function(l){return l.type!=='person'});
@@ -574,8 +579,8 @@ function renderPanel(){
       acts.map(function(l){
         var uc=labelUseCount(l.name);
         return '<div class="item"><span style="flex:1">@'+esc(l.name)+' <span class="tiny">'+(uc?uc+' 筆未完成':'沒有任務在用')+'</span></span>'+
-          '<button class="link" onclick="renameAction(\''+esc(l.name)+'\')">改名</button>'+
-          '<button class="link" style="color:var(--danger)" onclick="deleteAction(\''+esc(l.name)+'\')">刪除</button></div>';
+          '<button class="link" onclick="renameAction(\''+jsa(l.name)+'\')">改名</button>'+
+          '<button class="link" style="color:var(--danger)" onclick="deleteAction(\''+jsa(l.name)+'\')">刪除</button></div>';
       }).join('')+
       '<p class="hint">改名會更新所有掛著它的任務；刪除會把標籤從所有任務上拿掉，任務本身不會被刪。</p></div>';
   }
