@@ -167,7 +167,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
     </div>
   </header>
   <div id="add">
-    <input id="draft" type="text" placeholder="新增任務…  #案子  @標籤  !p1">
+    <input id="draft" type="text" placeholder="新增任務…  #動作  @員工  !p1" title="#動作標籤（例：#請款）、@員工（例：@佳佳）、!p1 優先度；案子＝左側選中的那個案子">
     <input id="ddue" type="date">
     <button class="primary" onclick="addTask()">新增</button>
   </div>
@@ -326,26 +326,47 @@ function pmeta(id){
 }
 function openCount(full){return S.items.filter(function(t){return !t.checked&&taskProject(t)===full}).length}
 
-/* ══ 解析 ══ */
+/* ══ 解析 ══
+   #＝動作標籤，@＝員工；案子跟著左側選中的案子走。
+   相容舊寫法：# 對不到動作標籤時會再試案子，@ 對不到員工時會再試動作標籤。 */
+function pickName(list,n){
+  var q=n.toLowerCase();
+  return list.filter(function(x){return x.toLowerCase()===q})[0]||
+         list.filter(function(x){return x.toLowerCase().indexOf(q)>=0})[0]||null;
+}
 function parseInput(raw){
-  var text=raw,proj=null,labs=[],pri=4;
+  var text=raw,proj=null,labs=[],pri=4,unknown=[];
+  var als=actionLabels();
+  var acts=als.filter(function(l){return l.type!=='person'}).map(function(l){return l.name});
+  var ppl=als.filter(function(l){return l.type==='person'}).map(function(l){return l.name});
+  var pns=projects().map(function(x){return x.name});
   text=text.replace(/!p([1-4])/gi,function(_,n){pri=+n;return''});
   text=text.replace(/#([^\s#@!]+)/g,function(_,n){
-    var hit=projects().filter(function(p){return p.name.toLowerCase().indexOf(n.toLowerCase())>=0})[0];
-    if(hit){proj=hit.id;return''}return'#'+n});
+    var hit=pickName(acts,n);
+    if(hit){labs.push(hit);return''}
+    var pn=pickName(pns,n);
+    if(pn){proj=PRE+pn;return''}
+    unknown.push(n);return'';
+  });
   text=text.replace(/@([^\s#@!]+)/g,function(_,n){
-    var hit=actionLabels().filter(function(l){return l.name.toLowerCase().indexOf(n.toLowerCase())>=0})[0];
-    if(hit){labs.push(hit.name);return''}return'@'+n});
-  return{content:text.replace(/\s+/g,' ').trim(),proj:proj,labs:labs,pri:pri};
+    var hit=pickName(ppl,n)||pickName(acts,n);
+    if(hit){labs.push(hit);return''}return'@'+n});
+  return{content:text.replace(/\s+/g,' ').trim(),proj:proj,labs:labs,pri:pri,unknown:unknown};
 }
 
 /* ══ 動作 ══ */
 function addTask(){
   var el=document.getElementById('draft'),due=document.getElementById('ddue');
   if(!el.value.trim())return;
-  var p=parseInput(el.value);if(!p.content)return;
+  var p=parseInput(el.value);
+  p.unknown.forEach(function(n){   /* 打了沒見過的 #動作：確認過才建立，免得打錯字生出一堆標籤 */
+    if(confirm('沒有「'+n+'」這個動作標籤，要新增並掛在這筆任務上嗎？'))p.labs.push(n);
+    else p.content=(p.content+' #'+n).trim();
+  });
+  if(!p.content)return;
   var proj=p.proj||(activeProject&&activeProject!=='none'?activeProject:null);
-  var labels=p.labs.slice();if(proj)labels.push(proj);
+  var labels=[],seen={};
+  p.labs.concat(proj?[proj]:[]).forEach(function(n){if(!seen[n]){seen[n]=1;labels.push(n)}});
   var d=due.value||(view==='today'?TODAY:'');
   var args={content:p.content,labels:labels,priority:toAPI(p.pri)};
   if(d)args.due={date:d};
@@ -494,7 +515,7 @@ function render(){
   document.getElementById('zclear').innerHTML=activeLabels.length?'<button class="link" onclick="activeLabels=[];render()">清除篩選</button>':'';
 
   document.getElementById('list').innerHTML=vs.length?vs.map(rowHTML).join(''):
-    '<div class="empty">這裡是空的。在上方輸入一筆任務，用 #案子 指定歸屬。</div>';
+    '<div class="empty">這裡是空的。在上方輸入一筆任務：#動作 標記動作標籤、@員工 指派同事，案子用左側選。</div>';
 }
 
 function rowHTML(t){
