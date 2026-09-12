@@ -54,11 +54,9 @@ header{background:var(--surface);border-bottom:1px solid var(--line);padding:10p
 #hrow{display:flex;align-items:baseline;gap:10px}
 h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 #count{font-size:12px;color:var(--ink45)}
-#zones{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-left:auto;flex:1 1 460px}
-#zoneP{order:1}
-#zscan{order:2;margin-left:auto}          /* 秘書掃描靠右，填掉第一行的空白 */
-#zoneA{order:3;flex:1 1 100%}             /* 動作標籤多，獨立一行 */
-#zclear{order:4}
+#zones{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;flex:1 1 100%}
+#zoneP{flex:0 0 auto}
+#zoneA{flex:1 1 340px}                    /* 動作標籤多，吃掉這一行剩下的寬度 */
 .zone{border:1px solid var(--line);border-radius:8px;padding:5px 8px 6px;min-width:120px}
 .ztitle{font-size:11px;color:var(--ink45);margin-bottom:4px;letter-spacing:.02em;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .ztitle .zt-act{display:flex;gap:8px}
@@ -70,7 +68,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .zchips{display:flex;flex-wrap:wrap;gap:4px}
 #zclear{width:100%;text-align:right;font-size:12px}
 #zclear:empty{display:none}
-#zscan{min-width:210px}
+#zscan{margin-left:auto;flex:0 0 auto;width:330px}   /* 與標題／搜尋同一行，靠右 */
 #zscan .sl{font-size:12px;color:var(--ink70);white-space:nowrap;line-height:1.5}
 #zscan .sl.stale{color:var(--warn)}
 #zscan .sl b{font-weight:500;display:inline-block;width:40px}
@@ -128,7 +126,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
   #side.open{transform:none;box-shadow:0 0 0 100vmax rgba(15,44,92,.3)}
   #menubtn{display:block;font-size:14px;color:var(--accent)}
   header,#add,.row{padding-left:14px;padding-right:14px}
-  #zscan{margin-left:0}   /* 手機一欄式，不需要靠右 */
+  #zscan{margin-left:0;width:100%}   /* 手機一欄式 */
   #add{flex-wrap:wrap}
   #add input[type=text]{flex:1 1 100%}
 }
@@ -175,8 +173,8 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
       </div>
       <div style="padding:6px 0 0"><input id="q" type="search" placeholder="搜尋任務關鍵字…（跨全部任務，Esc 清除）" style="width:100%;max-width:440px;font-size:14px;padding:7px 10px;background:var(--bg)"></div>
     </div>
+    <div class="zone" id="zscan" hidden></div>
     <div id="zones">
-      <div class="zone" id="zscan" hidden></div>
       <div class="zone" id="zoneP"><div class="ztitle">員工<span class="zt-act"><button onclick="newPerson()" title="新增員工">＋</button><button id="zeP" onclick="toggleZedit('P')" title="編輯員工">✎</button></span></div><div class="zchips" id="chipsP"></div></div>
       <div class="zone" id="zoneA"><div class="ztitle">動作<span class="zt-act"><button onclick="newAction()" title="新增動作標籤">＋</button><button id="zeA" onclick="toggleZedit('A')" title="編輯動作標籤">✎</button></span></div><div class="zchips" id="chipsA"></div></div>
       <div id="zclear"></div>
@@ -598,7 +596,7 @@ function render(){
   var sc=scanInfo(),zs=document.getElementById('zscan');
   zs.hidden=!sc;
   if(sc)zs.innerHTML='<div class="ztitle">秘書掃描</div>'+scanLine('LINE',sc.line)+scanLine('Email',sc.email)+
-    (sc.run?'<div class="tiny" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(sc.run)+'">上次：'+esc(sc.run)+'</div>':'');
+    (sc.run?'<div class="tiny" style="line-height:1.45;margin-top:2px">上次：'+esc(sc.run)+'</div>':'');
   document.getElementById('zeP').className=zedit.P?'on':'';
   document.getElementById('zeA').className=zedit.A?'on':'';
   document.getElementById('zclear').innerHTML=activeLabels.length?'<button class="link" onclick="activeLabels=[];render()">清除篩選</button>':'';
