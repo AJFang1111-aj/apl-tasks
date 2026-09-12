@@ -340,6 +340,8 @@ var CFG='⚙️ 任務台設定（勿刪）';
 var STAGES=['尚未正式聯繫','提案中','審查合約','專案執行','專案結案'];
 var STG=['未聯繫','提案中','審合約','執行中','已結案'];
 function isCfg(t){return t.content===CFG}
+/* 系統用任務（任務台設定、秘書排程的掃描紀錄等，標題含「勿刪」）：不進清單、不計數，只有關鍵字搜尋找得到 */
+function isSys(t){return isCfg(t)||(t.content||'').indexOf('勿刪')>=0}
 function cfgRead(){
   var it=S.items.filter(isCfg)[0];if(!it)return{};
   try{return JSON.parse(it.description||'{}')||{}}catch(e){return{}}
@@ -490,8 +492,9 @@ function tsort(a,b){
   return (b.priority||1)-(a.priority||1);
 }
 function visible(){
-  var out=S.items.filter(function(t){return (showDone?t.checked:!t.checked)&&!isCfg(t)});
+  var out=S.items.filter(function(t){return showDone?t.checked:!t.checked});
   var q=qval().toLowerCase();
+  if(!q)out=out.filter(function(t){return !isSys(t)});
   if(q){
     var ws=q.split(/\s+/);
     out=out.filter(function(t){
@@ -516,8 +519,8 @@ function visible(){
 var PC={1:'var(--danger)',2:'var(--warn)',3:'var(--accent)',4:'var(--ink45)'};
 function render(){
   var open={};
-  S.items.forEach(function(t){if(t.checked||isCfg(t))return;var k=taskProject(t)||'none';open[k]=(open[k]||0)+1});
-  var od=S.items.filter(function(t){var d=dueOf(t);return !t.checked&&!isCfg(t)&&d&&d<TODAY}).length;
+  S.items.forEach(function(t){if(t.checked||isSys(t))return;var k=taskProject(t)||'none';open[k]=(open[k]||0)+1});
+  var od=S.items.filter(function(t){var d=dueOf(t);return !t.checked&&!isSys(t)&&d&&d<TODAY}).length;
   document.getElementById('odue').textContent=od>0?od+' 筆逾期':'沒有逾期任務';
 
   document.getElementById('views').innerHTML=VIEWS.map(function(v){
