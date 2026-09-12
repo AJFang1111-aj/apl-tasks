@@ -685,6 +685,15 @@ function newProject(){
 }
 function labelIdByName(n){var l=S.labels.filter(function(x){return x.name===n})[0];return l?l.id:null}
 function labelUseCount(n){return S.items.filter(function(t){return !t.checked&&(t.labels||[]).indexOf(n)>=0}).length}
+/* 自己有同名個人標籤 → 用 id 改；只出現在共享任務上的標籤（夥伴建的案子）→ 用名稱改。
+   兩種都會同步更新所有任務；以前只認個人標籤，所以共享案子會跳「找不到這個案子」。 */
+function renameLabelCmd(oldFull,newFull){
+  var id=labelIdByName(oldFull);
+  return id?{type:'label_update',uuid:uuid(),args:{id:id,name:newFull}}
+           :{type:'label_rename',uuid:uuid(),args:{name_old:oldFull,name_new:newFull}};
+}
+function hasProject(nm){return projects().some(function(p){return p.name===nm})}
+function hasArchived(nm){return archivedProjects().some(function(p){return p.name===nm})}
 /* ══ 動作標籤管理 ══
    個人標籤走 label_update/label_delete；只存在於任務上的共享標籤（自己沒有同名個人標籤）
    走 label_rename / label_delete_occurrences，兩者都會同步更新所有任務。 */
@@ -722,11 +731,11 @@ function newProject(){
   if(n.indexOf(PRE)===0)n=n.slice(PRE.length).trim();
   if(!n)return;
   var full=PRE+n;
-  if(S.labels.some(function(l){return l.name===full})){
+  if(hasProject(n)){
     alert('「'+n+'」這個案子已經存在了。');
     activeProject=full;view='all';showDone=false;closeSide();render();return;
   }
-  if(S.labels.some(function(l){return l.name===ARC+n})){
+  if(hasArchived(n)){
     if(confirm('「'+n+'」是已封存的案子，要復原它嗎？'))restoreProject(ARC+n);
     return;
   }
@@ -740,40 +749,34 @@ function renameProject(full){
   if(n==null)return;
   n=n.trim();
   if(!n||n===cur)return;
-  var id=labelIdByName(full);
-  if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
   if(activeProject===full)activeProject=pre+n;
   renameStageKey(cur,n);
   closePanel();
-  push([{type:'label_update',uuid:uuid(),args:{id:id,name:pre+n}}]);
+  push([renameLabelCmd(full,pre+n)]);
 }
 function archiveProject(full){
   var nm=pmeta(full).name,oc=openCount(full);
   var msg='結案封存「'+nm+'」？\n'+(oc?'⚠️ 還有 '+oc+' 筆未完成任務，會一起被封存（不會刪除、不會完成）。\n':'')+'封存後案子從左側消失，任務全部保留；隨時可在「管理」→「已封存」復原。';
   if(!confirm(msg))return;
-  var id=labelIdByName(full);
-  if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
   if(activeProject===full)activeProject=null;
   closePanel();
-  push([{type:'label_update',uuid:uuid(),args:{id:id,name:ARC+nm}}]);
+  push([renameLabelCmd(full,ARC+nm)]);
 }
 function restoreProject(full){
   var nm=pmeta(full).name;
-  var id=labelIdByName(full);
-  if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
-  if(S.labels.some(function(l){return l.name===PRE+nm})){alert('已經有一個進行中的「'+nm+'」，請先改名再復原。');return}
+  if(hasProject(nm)){alert('已經有一個進行中的「'+nm+'」，請先改名再復原。');return}
   if(activeProject===full)activeProject=PRE+nm;
   closePanel();
-  push([{type:'label_update',uuid:uuid(),args:{id:id,name:PRE+nm}}]);
+  push([renameLabelCmd(full,PRE+nm)]);
 }
 function deleteProject(full){
   var nm=pmeta(full).name;
   if(!confirm('刪除案子「'+nm+'」？\n掛在這個案子的任務不會被刪，只會變成未分案。'))return;
-  var id=labelIdByName(full);
-  if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
   if(activeProject===full)activeProject=null;
   closePanel();
-  push([{type:'label_delete',uuid:uuid(),args:{id:id}}]);
+  var id=labelIdByName(full),cmds=[{type:'label_delete_occurrences',uuid:uuid(),args:{name:full}}];
+  if(id)cmds.push({type:'label_delete',uuid:uuid(),args:{id:id}});
+  push(cmds);
 }
 function savePeople(){
   PEOPLE=document.getElementById('ppl').value.split(',').map(function(x){return x.trim()}).filter(function(x){return x});
