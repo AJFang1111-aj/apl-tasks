@@ -66,6 +66,12 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .zchips{display:flex;flex-wrap:wrap;gap:4px}
 #zclear{width:100%;text-align:right;font-size:12px}
 #zclear:empty{display:none}
+.stg{font-size:10px;padding:1px 5px;border-radius:999px;border:1px solid var(--line);color:var(--ink45);flex-shrink:0;margin-left:4px}
+.stg.s1{color:var(--accent);border-color:var(--accent)}
+.stg.s2{color:var(--warn);border-color:var(--warn)}
+.stg.s3{color:var(--ok);border-color:var(--ok)}
+.stg.s4{background:var(--lineSoft)}
+.hsel,.msel{width:auto;font-size:12px;padding:2px 6px}
 .chip{padding:2px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink45)}
 .chip.person{color:var(--ink70)}
 .chip.on{border-color:var(--accent);background:var(--accentSoft);color:var(--accent)}
@@ -156,7 +162,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
     <div id="hleft">
       <div id="hrow">
         <button id="menubtn" onclick="toggleSide()">☰ 案子</button>
-        <h1 id="title"></h1><span id="count"></span>
+        <h1 id="title"></h1><span id="count"></span><span id="hstage"></span>
       </div>
       <div style="padding:6px 0 0"><input id="q" type="search" placeholder="搜尋任務關鍵字…（跨全部任務，Esc 清除）" style="width:100%;max-width:440px;font-size:14px;padding:7px 10px;background:var(--bg)"></div>
     </div>
@@ -167,7 +173,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
     </div>
   </header>
   <div id="add">
-    <input id="draft" type="text" placeholder="新增任務…  #動作  @員工  !p1" title="#動作標籤（例：#請款）、@員工（例：@佳佳）、!p1 優先度；案子＝左側選中的那個案子">
+    <input id="draft" type="text" placeholder="新增任務…  #動作  @員工  !p1" title="#動作標籤（例：#請款）、@員工（例：@佳佳）、!p1 緊急度；案子＝左側選中的那個案子">
     <input id="ddue" type="date">
     <button class="primary" onclick="addTask()">新增</button>
   </div>
@@ -188,6 +194,7 @@ var token=localStorage.getItem(TK)||'';
 var SEEDL=['報價','請款','等對方回覆','待技術確認','送審','文件用印','合約','資料準備','聯繫拜訪'];
 var PEOPLE=[];try{PEOPLE=JSON.parse(localStorage.getItem('apl-people')||'[]')}catch(e){}
 if(localStorage.getItem('apl-people')===null)PEOPLE=['蛋蛋','Nelson','佳佳','YY'];  /* 尚未設定時的預設員工名單，可在設定裡改 */
+var URG={1:'🔴 急',2:'🟡 重要',3:'🟢 一般',4:'⚪ 低'};
 var PAL=['#2C6E9B','#3C7A4E','#8A5A2B','#5B5570','#1E7A4F','#7A3B5B'];
 function pcolor(n){var h=0;for(var i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return PAL[h%PAL.length]}
 
@@ -326,6 +333,42 @@ function pmeta(id){
 }
 function openCount(full){return S.items.filter(function(t){return !t.checked&&taskProject(t)===full}).length}
 
+/* ══ 案子階段 ══
+   階段是「案子」的屬性，不是任務的。存在共享專案裡一筆隱藏任務的描述（JSON），
+   夥伴用各自的權杖同步後看到的階段才會一致。那筆任務不會出現在任何清單裡。 */
+var CFG='⚙️ 任務台設定（勿刪）';
+var STAGES=['尚未正式聯繫','提案中','審查合約','專案執行','專案結案'];
+var STG=['未聯繫','提案中','審合約','執行中','已結案'];
+function isCfg(t){return t.content===CFG}
+function cfgRead(){
+  var it=S.items.filter(isCfg)[0];if(!it)return{};
+  try{return JSON.parse(it.description||'{}')||{}}catch(e){return{}}
+}
+function cfgWrite(o){
+  var it=S.items.filter(isCfg)[0],body=JSON.stringify(o);
+  if(it){local(it.id,{description:body});push([{type:'item_update',uuid:uuid(),args:{id:it.id,description:body}}]);return}
+  var args={content:CFG,description:body},home=homeProjectId();if(home)args.project_id=home;
+  push([{type:'item_add',temp_id:uuid(),uuid:uuid(),args:args}]);
+}
+function stageOf(full){
+  var v=(cfgRead().stages||{})[pmeta(full).name];
+  return typeof v==='number'&&v>=0&&v<STAGES.length?v:0;
+}
+function setStage(full,n){
+  var c=cfgRead();c.stages=c.stages||{};c.stages[pmeta(full).name]=+n;cfgWrite(c);
+}
+function renameStageKey(oldName,newName){
+  var c=cfgRead(),m=c.stages||{};
+  if(!(oldName in m))return;
+  m[newName]=m[oldName];delete m[oldName];c.stages=m;cfgWrite(c);
+}
+function stageSelect(full,cls){
+  var cur=stageOf(full);
+  return '<select class="'+cls+'" title="案子階段" onchange="setStage(\''+jsa(full)+'\',this.value)">'+
+    STAGES.map(function(s,i){return '<option value="'+i+'"'+(cur===i?' selected':'')+'>P'+i+' '+esc(s)+'</option>'}).join('')+
+    '</select>';
+}
+
 /* ══ 解析 ══
    #＝動作標籤，@＝員工；案子跟著左側選中的案子走。
    相容舊寫法：# 對不到動作標籤時會再試案子，@ 對不到員工時會再試動作標籤。 */
@@ -447,7 +490,7 @@ function tsort(a,b){
   return (b.priority||1)-(a.priority||1);
 }
 function visible(){
-  var out=S.items.filter(function(t){return showDone?t.checked:!t.checked});
+  var out=S.items.filter(function(t){return (showDone?t.checked:!t.checked)&&!isCfg(t)});
   var q=qval().toLowerCase();
   if(q){
     var ws=q.split(/\s+/);
@@ -473,8 +516,8 @@ function visible(){
 var PC={1:'var(--danger)',2:'var(--warn)',3:'var(--accent)',4:'var(--ink45)'};
 function render(){
   var open={};
-  S.items.forEach(function(t){if(t.checked)return;var k=taskProject(t)||'none';open[k]=(open[k]||0)+1});
-  var od=S.items.filter(function(t){var d=dueOf(t);return !t.checked&&d&&d<TODAY}).length;
+  S.items.forEach(function(t){if(t.checked||isCfg(t))return;var k=taskProject(t)||'none';open[k]=(open[k]||0)+1});
+  var od=S.items.filter(function(t){var d=dueOf(t);return !t.checked&&!isCfg(t)&&d&&d<TODAY}).length;
   document.getElementById('odue').textContent=od>0?od+' 筆逾期':'沒有逾期任務';
 
   document.getElementById('views').innerHTML=VIEWS.map(function(v){
@@ -488,13 +531,14 @@ function render(){
     projects().filter(function(p){return p.name.toLowerCase().indexOf(f)>=0}).map(function(p){
       return '<button class="navbtn'+(activeProject===p.id?' on':'')+'" onclick="pickProject(\''+jsa(p.id)+'\')" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropT(event,\''+jsa(p.id)+'\')" title="把任務拖到這裡歸入此案">'+
         '<span class="dot" style="background:'+pcolor(p.name)+'"></span><span class="nm">'+esc(p.name)+
-        '</span><span class="n">'+(open[p.id]||'')+'</span></button>';
+        '</span><span class="stg s'+stageOf(p.id)+'">'+esc(STG[stageOf(p.id)])+'</span><span class="n">'+(open[p.id]||'')+'</span></button>';
     }).join('');
 
   var vs=visible();
   document.getElementById('title').textContent=
     qval()?'搜尋「'+qval()+'」':showDone?'已完成':activeProject?(activeProject==='none'?'未分案':pmeta(activeProject).name+(pmeta(activeProject).archived?'（已封存）':'')):VIEWS.filter(function(v){return v[0]===view})[0][1];
   document.getElementById('count').textContent=vs.length+' 筆';
+  document.getElementById('hstage').innerHTML=(activeProject&&activeProject!=='none'&&!showDone&&!qval())?stageSelect(activeProject,'hsel'):'';
 
   var chipHtml=function(l){
       var on=activeLabels.indexOf(l.name)>=0;
@@ -523,7 +567,7 @@ function rowHTML(t){
   var h='<div class="row"'+(editing===t.id?'':' draggable="true" ondragstart="dragT(event,\''+t.id+'\')"')+'>'+
     '<button class="tick'+(t.checked?' done':'')+'" onclick="toggle(\''+t.id+'\')" aria-label="切換完成"></button>'+
     '<div class="body"><div class="txt'+(t.checked?' done':'')+'" onclick="toggleEdit(\''+t.id+'\')">'+esc(t.content)+'</div>'+
-    '<div class="meta"><span style="color:'+PC[ui]+'">P'+ui+'</span>'+
+    '<div class="meta">'+(ui<4?'<span style="color:'+PC[ui]+'">'+URG[ui]+'</span>':'')+
       (d?'<span class="'+(late?'late':'')+'">'+dayLabel(d)+'</span>':'')+
       (pj?'<span style="color:'+pcolor(pmeta(pj).name)+'">'+esc(pmeta(pj).name)+(pmeta(pj).archived?'<span style="color:var(--ink45)">（封存）</span>':'')+'</span>':'')+
       taskLabels(t).map(function(l){return '<span>@'+esc(l)+'</span>'}).join('')+
@@ -539,7 +583,7 @@ function rowHTML(t){
           projects().map(function(p){return '<option value="'+esc(p.id)+'"'+(pj===p.id?' selected':'')+'>'+esc(p.name)+'</option>'}).join('')+
         '</select>'+
         '<select onchange="setPri(\''+t.id+'\',this.value)">'+
-          [1,2,3,4].map(function(n){return '<option value="'+n+'"'+(ui===n?' selected':'')+'>P'+n+'</option>'}).join('')+
+          [1,2,3,4].map(function(n){return '<option value="'+n+'"'+(ui===n?' selected':'')+'>'+URG[n]+'</option>'}).join('')+
         '</select>'+
         '<input type="date" value="'+d+'" onchange="setDue(\''+t.id+'\',this.value)">'+
         '<button class="link" style="margin-left:auto;color:var(--danger)" onclick="delTask(\''+t.id+'\')">刪除</button>'+
@@ -575,6 +619,7 @@ function renderPanel(){
       var oc=openCount(p.id);
       return '<div class="item"><span class="dot" style="background:'+pcolor(p.name)+'"></span>'+
         '<span style="flex:1">'+esc(p.name)+' <span class="tiny">'+(oc?oc+' 筆未完成':'無未完成')+'</span></span>'+
+        stageSelect(p.id,'msel')+
         '<button class="link" onclick="renameProject(\''+jsa(p.id)+'\')">改名</button>'+
         '<button class="link" onclick="archiveProject(\''+jsa(p.id)+'\')">封存</button>'+
         '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+jsa(p.id)+'\')">刪除</button></div>';
@@ -698,6 +743,7 @@ function renameProject(full){
   var id=labelIdByName(full);
   if(!id){alert('找不到這個案子，請按「完整重新同步」後再試。');return}
   if(activeProject===full)activeProject=pre+n;
+  renameStageKey(cur,n);
   closePanel();
   push([{type:'label_update',uuid:uuid(),args:{id:id,name:pre+n}}]);
 }
