@@ -68,7 +68,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .zchips{display:flex;flex-wrap:wrap;gap:4px}
 #zclear{width:100%;text-align:right;font-size:12px}
 #zclear:empty{display:none}
-#zscan{margin-left:auto;flex:0 0 auto;width:330px}   /* 與標題／搜尋同一行，靠右 */
+#zscan{margin-left:auto;flex:0 0 auto;width:460px}   /* 與標題／搜尋同一行，靠右 */
 #zscan .sl{font-size:12px;color:var(--ink70);white-space:nowrap;line-height:1.5}
 #zscan .sl.stale{color:var(--warn)}
 #zscan .sl b{font-weight:500;display:inline-block;width:40px}
@@ -373,6 +373,12 @@ function ago(ts){
   var h=Math.round(m/60);if(h<48)return h+' 小時前';
   return Math.round(h/24)+' 天前';
 }
+function runText(raw){
+  var t=String(raw).split('；')[0].split(';')[0].trim();   /* 只留最近一次，捨棄「前一次…」 */
+  t=t.replace(/^(\d{4})-(\d{2})-(\d{2})\s*/,function(_,y,m,d){return (+m)+'/'+(+d)+' '});
+  t=t.replace(/[（(]/,'：').replace(/[）)]\s*$/,'');
+  return t||String(raw);
+}
 function scanLine(label,ts){
   if(!ts)return'';
   var stale=Date.now()-new Date(ts.replace(' ','T')).getTime()>36*3600e3;
@@ -596,7 +602,7 @@ function render(){
   var sc=scanInfo(),zs=document.getElementById('zscan');
   zs.hidden=!sc;
   if(sc)zs.innerHTML='<div class="ztitle">秘書掃描</div>'+scanLine('LINE',sc.line)+scanLine('Email',sc.email)+
-    (sc.run?'<div class="tiny" style="line-height:1.45;margin-top:2px">上次：'+esc(sc.run)+'</div>':'');
+    (sc.run?'<div class="tiny" style="line-height:1.45;margin-top:2px">上次 '+esc(runText(sc.run))+'</div>':'');
   document.getElementById('zeP').className=zedit.P?'on':'';
   document.getElementById('zeA').className=zedit.A?'on':'';
   document.getElementById('zclear').innerHTML=activeLabels.length?'<button class="link" onclick="activeLabels=[];render()">清除篩選</button>':'';
