@@ -54,7 +54,11 @@ header{background:var(--surface);border-bottom:1px solid var(--line);padding:10p
 #hrow{display:flex;align-items:baseline;gap:10px}
 h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 #count{font-size:12px;color:var(--ink45)}
-#zones{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-left:auto}
+#zones{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-left:auto;flex:1 1 460px}
+#zoneP{order:1}
+#zscan{order:2;margin-left:auto}          /* 秘書掃描靠右，填掉第一行的空白 */
+#zoneA{order:3;flex:1 1 100%}             /* 動作標籤多，獨立一行 */
+#zclear{order:4}
 .zone{border:1px solid var(--line);border-radius:8px;padding:5px 8px 6px;min-width:120px}
 .ztitle{font-size:11px;color:var(--ink45);margin-bottom:4px;letter-spacing:.02em;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .ztitle .zt-act{display:flex;gap:8px}
@@ -66,6 +70,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .zchips{display:flex;flex-wrap:wrap;gap:4px}
 #zclear{width:100%;text-align:right;font-size:12px}
 #zclear:empty{display:none}
+#zscan{min-width:210px}
 #zscan .sl{font-size:12px;color:var(--ink70);white-space:nowrap;line-height:1.5}
 #zscan .sl.stale{color:var(--warn)}
 #zscan .sl b{font-weight:500;display:inline-block;width:40px}
@@ -123,6 +128,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
   #side.open{transform:none;box-shadow:0 0 0 100vmax rgba(15,44,92,.3)}
   #menubtn{display:block;font-size:14px;color:var(--accent)}
   header,#add,.row{padding-left:14px;padding-right:14px}
+  #zscan{margin-left:0}   /* 手機一欄式，不需要靠右 */
   #add{flex-wrap:wrap}
   #add input[type=text]{flex:1 1 100%}
 }
@@ -171,8 +177,8 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
     </div>
     <div id="zones">
       <div class="zone" id="zscan" hidden></div>
-      <div class="zone"><div class="ztitle">員工<span class="zt-act"><button onclick="newPerson()" title="新增員工">＋</button><button id="zeP" onclick="toggleZedit('P')" title="編輯員工">✎</button></span></div><div class="zchips" id="chipsP"></div></div>
-      <div class="zone"><div class="ztitle">動作<span class="zt-act"><button onclick="newAction()" title="新增動作標籤">＋</button><button id="zeA" onclick="toggleZedit('A')" title="編輯動作標籤">✎</button></span></div><div class="zchips" id="chipsA"></div></div>
+      <div class="zone" id="zoneP"><div class="ztitle">員工<span class="zt-act"><button onclick="newPerson()" title="新增員工">＋</button><button id="zeP" onclick="toggleZedit('P')" title="編輯員工">✎</button></span></div><div class="zchips" id="chipsP"></div></div>
+      <div class="zone" id="zoneA"><div class="ztitle">動作<span class="zt-act"><button onclick="newAction()" title="新增動作標籤">＋</button><button id="zeA" onclick="toggleZedit('A')" title="編輯動作標籤">✎</button></span></div><div class="zchips" id="chipsA"></div></div>
       <div id="zclear"></div>
     </div>
   </header>
