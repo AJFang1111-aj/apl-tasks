@@ -117,7 +117,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .item input{border:none;background:none;padding:2px 0}
 .tiny{font-size:12px;color:var(--ink45);flex-shrink:0}
 .hint{font-size:12px;color:var(--ink45);margin-top:12px;line-height:1.6}
-#menubtn{display:none}
+#menubtn,#zbtn{display:none}
 .spin{color:var(--accent)}
 
 @media (max-width:760px){
@@ -127,6 +127,12 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
   #menubtn{display:block;font-size:14px;color:var(--accent)}
   header,#add,.row{padding-left:14px;padding-right:14px}
   #zscan{margin-left:0;width:100%}   /* 手機一欄式 */
+  #zbtn{display:block;font-size:14px;color:var(--accent);margin-left:auto;order:9}
+  body.zhide #zones{display:none}                      /* 員工／動作收起，點「篩選」展開 */
+  body.zhide #zscan{padding:5px 8px}                   /* 秘書掃描留著，只留兩行時間 */
+  body.zhide #zscan .ztitle,body.zhide #zscan .runline{display:none}
+  header{padding-top:8px;padding-bottom:8px;gap:6px 10px}
+  #zoneA,#zoneP{flex:1 1 100%;min-width:0}
   #add{flex-wrap:wrap}
   #add input[type=text]{flex:1 1 100%}
 }
@@ -168,7 +174,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
   <header>
     <div id="hleft">
       <div id="hrow">
-        <button id="menubtn" onclick="toggleSide()">☰ 案子</button>
+        <button id="menubtn" onclick="toggleSide()">☰ 案子</button><button id="zbtn" onclick="toggleZones()"></button>
         <h1 id="title"></h1><span id="count"></span><span id="hstage"></span>
       </div>
       <div style="padding:6px 0 0"><input id="q" type="search" placeholder="搜尋任務關鍵字…（跨全部任務，Esc 清除）" style="width:100%;max-width:440px;font-size:14px;padding:7px 10px;background:var(--bg)"></div>
@@ -519,6 +525,7 @@ function pickProject(id){activeProject=id;showDone=false;view='all';closeSide();
 function toggleDone(){showDone=!showDone;closeSide();render()}
 function toggleChip(n){var i=activeLabels.indexOf(n);if(i>=0)activeLabels.splice(i,1);else activeLabels.push(n);render()}
 function toggleEdit(id){editing=editing===id?null:id;render()}
+function toggleZones(){document.body.classList.toggle('zhide');render()}
 function toggleSide(){document.getElementById('side').classList.toggle('open')}
 function closeSide(){document.getElementById('side').classList.remove('open')}
 
@@ -602,7 +609,9 @@ function render(){
   var sc=scanInfo(),zs=document.getElementById('zscan');
   zs.hidden=!sc;
   if(sc)zs.innerHTML='<div class="ztitle">秘書掃描</div>'+scanLine('LINE',sc.line)+scanLine('Email',sc.email)+
-    (sc.run?'<div class="tiny" style="line-height:1.45;margin-top:2px">上次 '+esc(runText(sc.run))+'</div>':'');
+    (sc.run?'<div class="tiny runline" style="line-height:1.45;margin-top:2px">上次 '+esc(runText(sc.run))+'</div>':'');
+  var hid=document.body.classList.contains('zhide');
+  document.getElementById('zbtn').textContent=hid?('篩選'+(activeLabels.length?' '+activeLabels.length:'')+' ▾'):'收起 ▴';
   document.getElementById('zeP').className=zedit.P?'on':'';
   document.getElementById('zeA').className=zedit.A?'on':'';
   document.getElementById('zclear').innerHTML=activeLabels.length?'<button class="link" onclick="activeLabels=[];render()">清除篩選</button>':'';
@@ -904,6 +913,7 @@ document.getElementById('draft').addEventListener('keydown',function(e){
 });
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&token)pull(false)});
 
+if(window.innerWidth<=760)document.body.classList.add('zhide');
 restore();render();
 if(token)pull(true);else showGate();
 </script>
