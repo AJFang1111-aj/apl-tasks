@@ -66,6 +66,9 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .zchips{display:flex;flex-wrap:wrap;gap:4px}
 #zclear{width:100%;text-align:right;font-size:12px}
 #zclear:empty{display:none}
+#zscan .sl{font-size:12px;color:var(--ink70);white-space:nowrap;line-height:1.5}
+#zscan .sl.stale{color:var(--warn)}
+#zscan .sl b{font-weight:500;display:inline-block;width:40px}
 .stg{font-size:10px;padding:1px 5px;border-radius:999px;border:1px solid var(--line);color:var(--ink45);flex-shrink:0;margin-left:4px}
 .stg.s1{color:var(--accent);border-color:var(--accent)}
 .stg.s2{color:var(--warn);border-color:var(--warn)}
@@ -167,6 +170,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
       <div style="padding:6px 0 0"><input id="q" type="search" placeholder="搜尋任務關鍵字…（跨全部任務，Esc 清除）" style="width:100%;max-width:440px;font-size:14px;padding:7px 10px;background:var(--bg)"></div>
     </div>
     <div id="zones">
+      <div class="zone" id="zscan" hidden></div>
       <div class="zone"><div class="ztitle">員工<span class="zt-act"><button onclick="newPerson()" title="新增員工">＋</button><button id="zeP" onclick="toggleZedit('P')" title="編輯員工">✎</button></span></div><div class="zchips" id="chipsP"></div></div>
       <div class="zone"><div class="ztitle">動作<span class="zt-act"><button onclick="newAction()" title="新增動作標籤">＋</button><button id="zeA" onclick="toggleZedit('A')" title="編輯動作標籤">✎</button></span></div><div class="zchips" id="chipsA"></div></div>
       <div id="zclear"></div>
@@ -342,6 +346,34 @@ var STG=['未聯繫','提案中','審合約','執行中','已結案'];
 function isCfg(t){return t.content===CFG}
 /* 系統用任務（任務台設定、秘書排程的掃描紀錄等，標題含「勿刪」）：不進清單、不計數，只有關鍵字搜尋找得到 */
 function isSys(t){return isCfg(t)||(t.content||'').indexOf('勿刪')>=0}
+
+/* ══ 秘書掃描紀錄 ══
+   秘書的 LINE／Email 排程每次跑完，會把「最後處理時間」寫在它自己那筆任務的描述裡；
+   這裡直接讀出來顯示在右上角，讓人知道秘書同步到哪裡。找不到那筆任務（夥伴帳號）就不顯示。 */
+function scanInfo(){
+  var out=null;
+  S.items.forEach(function(t){
+    if(out||t.checked)return;
+    var d=t.description||'';
+    var l=/LINE 最後處理訊息時間[：:]\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/.exec(d);
+    var e=/Email 最後處理信件時間[：:]\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/.exec(d);
+    if(!l&&!e)return;
+    var run=/<!--\s*上次執行[：:]\s*([^>]*?)\s*-->/.exec(d);
+    out={line:l&&l[1],email:e&&e[1],run:run&&run[1]};
+  });
+  return out;
+}
+function ago(ts){
+  var ms=Date.now()-new Date(ts.replace(' ','T')).getTime();if(isNaN(ms))return'';
+  var m=Math.round(ms/60000);if(m<60)return m+' 分鐘前';
+  var h=Math.round(m/60);if(h<48)return h+' 小時前';
+  return Math.round(h/24)+' 天前';
+}
+function scanLine(label,ts){
+  if(!ts)return'';
+  var stale=Date.now()-new Date(ts.replace(' ','T')).getTime()>36*3600e3;
+  return '<div class="sl'+(stale?' stale':'')+'"><b>'+label+'</b>'+esc(ts.slice(5,16).replace('-','/'))+' <span class="tiny">'+ago(ts)+'</span></div>';
+}
 function cfgRead(){
   var it=S.items.filter(isCfg)[0];if(!it)return{};
   try{return JSON.parse(it.description||'{}')||{}}catch(e){return{}}
@@ -557,6 +589,10 @@ function render(){
   var pp=als.filter(function(l){return l.type==='person'}), aa=als.filter(function(l){return l.type!=='person'});
   document.getElementById('chipsP').innerHTML=pp.length?pp.map(zedit.P?chipEditHtml:chipHtml).join(''):'<span class="chip" style="border-style:dashed">（按＋新增員工）</span>';
   document.getElementById('chipsA').innerHTML=aa.map(zedit.A?chipEditHtml:chipHtml).join('');
+  var sc=scanInfo(),zs=document.getElementById('zscan');
+  zs.hidden=!sc;
+  if(sc)zs.innerHTML='<div class="ztitle">秘書掃描</div>'+scanLine('LINE',sc.line)+scanLine('Email',sc.email)+
+    (sc.run?'<div class="tiny" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(sc.run)+'">上次：'+esc(sc.run)+'</div>':'');
   document.getElementById('zeP').className=zedit.P?'on':'';
   document.getElementById('zeA').className=zedit.A?'on':'';
   document.getElementById('zclear').innerHTML=activeLabels.length?'<button class="link" onclick="activeLabels=[];render()">清除篩選</button>':'';
