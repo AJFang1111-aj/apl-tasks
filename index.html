@@ -363,7 +363,9 @@ function isSys(t){return isCfg(t)||(t.content||'').indexOf('勿刪')>=0}
 function scanInfo(){
   var out=null;
   S.items.forEach(function(t){
-    if(out||t.checked)return;
+    /* 只認標題含「掃描紀錄」的勿刪系統任務：秘書的【排程維運】任務會把「應改成的時間」貼進描述，
+       格式一模一樣但並未生效；夥伴帳號看不到本尊，只看得到那種維運任務，會顯示錯的時間 */
+    if(out||t.checked||!isSys(t)||(t.content||'').indexOf('掃描紀錄')<0)return;
     var d=t.description||'';
     var l=/LINE 最後處理訊息時間[：:]\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/.exec(d);
     var e=/Email 最後處理信件時間[：:]\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/.exec(d);
@@ -377,13 +379,15 @@ function ago(ts){
   var ms=Date.now()-new Date(ts.replace(' ','T')).getTime();if(isNaN(ms))return'';
   var m=Math.round(ms/60000);if(m<60)return m+' 分鐘前';
   var h=Math.round(m/60);if(h<48)return h+' 小時前';
-  return Math.round(h/24)+' 天前';
+  return Math.floor(h/24)+' 天前';
 }
 function runText(raw){
   var t=String(raw).split('；')[0].split(';')[0].trim();   /* 只留最近一次，捨棄「前一次…」 */
+  t=t.split(/\s*[—–]\s*/)[0];                          /* 捨棄「— 涵蓋…」補充說明，保持一行 */
   t=t.replace(/^(\d{4})-(\d{2})-(\d{2})\s*/,function(_,y,m,d){return (+m)+'/'+(+d)+' '});
-  t=t.replace(/[（(]/,'：').replace(/[）)]\s*$/,'');
-  return t||String(raw);
+  t=t.replace(/\s\d{1,2}:\d?x\b/i,'');                        /* 秘書沒寫確切分鐘時會留「00:0x」 */
+  t=t.replace(/[（(]/,'：').replace(/[）)]/,'');
+  return t.trim()||String(raw);
 }
 function scanLine(label,ts){
   if(!ts)return'';
