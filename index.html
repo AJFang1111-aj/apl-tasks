@@ -398,11 +398,39 @@ function cfgRead(){
   var it=S.items.filter(isCfg)[0];if(!it)return{};
   try{return JSON.parse(it.description||'{}')||{}}catch(e){return{}}
 }
-function cfgWrite(o){
-  var it=S.items.filter(isCfg)[0],body=JSON.stringify(o);
-  if(it){local(it.id,{description:body});push([{type:'item_update',uuid:uuid(),args:{id:it.id,description:body}}]);return}
+var cfgAdding=false;
+function cfgWrite(o,extra){
+  var it=S.items.filter(isCfg)[0],body=JSON.stringify(o),cmds=(extra||[]).slice();
+  if(it){
+    local(it.id,{description:body});
+    cmds.unshift({type:'item_update',uuid:uuid(),args:{id:it.id,description:body}});
+    push(cmds);return;
+  }
+  if(cfgAdding){if(cmds.length)push(cmds);return}   /* 設定任務正在建立中，不要建第二筆 */
   var args={content:CFG,description:body},home=homeProjectId();if(home)args.project_id=home;
-  push([{type:'item_add',temp_id:uuid(),uuid:uuid(),args:args}]);
+  cmds.unshift({type:'item_add',temp_id:uuid(),uuid:uuid(),args:args});
+  cfgAdding=true;
+  push(cmds).then(function(){cfgAdding=false},function(){cfgAdding=false});
+}
+/* ══ 員工名單 ══
+   名單跟案子階段一樣存在共享設定任務裡，手機、Mac、夥伴才會一致；localStorage 只當離線快取。 */
+var PMIG='apl-people-synced';
+function cfgSetPeople(extra){
+  var c=cfgRead();c.people=PEOPLE.slice();cfgWrite(c,extra);
+}
+function syncPeople(){
+  if(cfgAdding||!S.items.length)return;
+  var c=cfgRead(),p=c.people;
+  if(!p||!p.length){                      /* 雲端還沒有名單：用這台的名單建立 */
+    if(PEOPLE.length){try{localStorage.setItem(PMIG,'1')}catch(e){}c.people=PEOPLE.slice();cfgWrite(c)}
+    return;
+  }
+  if(!localStorage.getItem(PMIG)){        /* 這台第一次升級：本機多出來的人併上去，之後一律以雲端為準 */
+    try{localStorage.setItem(PMIG,'1')}catch(e){}
+    var add=PEOPLE.filter(function(n){return p.indexOf(n)<0});
+    if(add.length){c.people=p.concat(add);PEOPLE=c.people.slice();persistPeople();cfgWrite(c);return}
+  }
+  if(p.join('\n')!==PEOPLE.join('\n')){PEOPLE=p.slice();persistPeople()}
 }
 function stageOf(full){
   var v=(cfgRead().stages||{})[pmeta(full).name];
@@ -571,6 +599,7 @@ function visible(){
 /* ══ 繪製 ══ */
 var PC={1:'var(--danger)',2:'var(--warn)',3:'var(--accent)',4:'var(--ink45)'};
 function render(){
+  syncPeople();
   var open={};
   S.items.forEach(function(t){if(t.checked||isSys(t))return;var k=taskProject(t)||'none';open[k]=(open[k]||0)+1});
   var od=S.items.filter(function(t){var d=dueOf(t);return !t.checked&&!isSys(t)&&d&&d<TODAY}).length;
@@ -720,7 +749,7 @@ function renderPanel(){
       '<button class="link" style="color:var(--danger)" onclick="logout()">移除這台裝置的權杖</button></div>'+
       '<p class="hint">在另一台裝置打開同一個網址、貼上同一組權杖，兩邊就是同一份資料。</p>'+
       '<div style="border-top:1px solid var(--lineSoft);margin-top:14px;padding-top:14px">'+
-      '<p class="hint" style="margin-top:0">同事名字（逗號分隔）。列在這裡的標籤會被當成「人」，顯示時不加 @。</p>'+
+      '<p class="hint" style="margin-top:0">同事名字（逗號分隔）。列在這裡的標籤會被當成「人」，顯示時不加 @。名單存在共用的設定任務裡，所有裝置與夥伴都一致。</p>'+
       '<div class="editrow"><input id="ppl" type="text" style="flex:1" value="'+esc(PEOPLE.join(','))+'">'+
       '<button class="primary" style="padding:6px 12px" onclick="savePeople()">儲存</button></div></div>';
   }
@@ -845,7 +874,7 @@ function savePeople(){
   try{localStorage.setItem('apl-people',JSON.stringify(PEOPLE))}catch(e){}
   /* 名單上還沒有對應 Todoist 標籤的人，順手建立標籤，之後才能掛到任務上 */
   var miss=PEOPLE.filter(function(n){return !S.labels.some(function(l){return l.name===n})});
-  if(miss.length)push(miss.map(function(n){return{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}}));
+  cfgSetPeople(miss.map(function(n){return{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}}));
   closePanel();render();
 }
 /* ══ 員工管理（右上角區塊）══
@@ -856,9 +885,9 @@ function newPerson(){
   if(isProjLabel(n)){alert('員工名稱不能用 案-／封存- 開頭，那是案子專用的。');return}
   if(PEOPLE.indexOf(n)>=0){alert('「'+n+'」已經在名單裡了。');return}
   PEOPLE.push(n);persistPeople();
-  if(!S.labels.some(function(l){return l.name===n}))
-    push([{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}]);
-  else render();
+  cfgSetPeople(S.labels.some(function(l){return l.name===n})?[]
+    :[{type:'label_add',temp_id:uuid(),uuid:uuid(),args:{name:n}}]);
+  render();
 }
 function renamePerson(old){
   var n=prompt('員工改名：',old);if(n==null)return;n=n.trim();if(!n||n===old)return;
@@ -867,8 +896,9 @@ function renamePerson(old){
   var i=PEOPLE.indexOf(old);if(i>=0)PEOPLE[i]=n;persistPeople();
   var ai=activeLabels.indexOf(old);if(ai>=0)activeLabels[ai]=n;
   var id=labelIdByName(old);
-  push([id?{type:'label_update',uuid:uuid(),args:{id:id,name:n}}
-         :{type:'label_rename',uuid:uuid(),args:{name_old:old,name_new:n}}]);
+  cfgSetPeople([id?{type:'label_update',uuid:uuid(),args:{id:id,name:n}}
+                  :{type:'label_rename',uuid:uuid(),args:{name_old:old,name_new:n}}]);
+  render();
 }
 function delPerson(name){
   var uc=labelUseCount(name);
@@ -878,7 +908,7 @@ function delPerson(name){
   var id=labelIdByName(name);
   var cmds=[{type:'label_delete_occurrences',uuid:uuid(),args:{name:name}}];
   if(id)cmds.push({type:'label_delete',uuid:uuid(),args:{id:id}});
-  push(cmds);
+  cfgSetPeople(cmds);render();
 }
 function logout(){localStorage.removeItem(TK);localStorage.removeItem(CK);token='';closePanel();showGate()}
 
