@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow,noarchive">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.todoist.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.todoist.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="任務台">
@@ -166,6 +166,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
   <div id="foot">
     <button class="link" onclick="pull(true)">重新整理</button>
     <span id="status"></span>
+    <button class="link" id="newver" hidden style="color:var(--warn)" onclick="location.reload()">有新版，點我更新</button>
     <button class="link" onclick="openPanel('settings')">設定</button>
   </div>
 </aside>
@@ -204,6 +205,15 @@ var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
 function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
+var VERSION='2026-09-24a';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
+var verAt=0;
+function checkVersion(){
+  if(Date.now()-verAt<6e5)return;verAt=Date.now();
+  fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){
+    var m=/var VERSION='([^']+)'/.exec(t);
+    if(m&&m[1]!==VERSION)document.getElementById('newver').hidden=false;
+  }).catch(function(){});
+}
 
 var SEEDL=['報價','請款','等對方回覆','待技術確認','送審','文件用印','合約','資料準備','聯繫拜訪'];
 var PEOPLE=[];try{PEOPLE=JSON.parse(localStorage.getItem('apl-people')||'[]')}catch(e){}
@@ -945,7 +955,8 @@ document.getElementById('draft').addEventListener('keydown',function(e){
   if(imeBusy(this,e))return;      /* 這個 Enter 是在確認選字，不是要送出 */
   e.preventDefault();addTask();
 });
-document.addEventListener('visibilitychange',function(){if(!document.hidden&&token)pull(false)});
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&token){pull(false);checkVersion()}});
+setTimeout(checkVersion,4000);
 
 if(window.innerWidth<=760)document.body.classList.add('zhide');
 restore();render();
