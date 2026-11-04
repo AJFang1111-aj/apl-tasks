@@ -205,7 +205,7 @@ var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
 function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
-var VERSION='2026-09-24a';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
+var VERSION='2026-11-04a';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
 var verAt=0;
 function checkVersion(){
   if(Date.now()-verAt<6e5)return;verAt=Date.now();
@@ -279,7 +279,7 @@ function pull(full){
     }
     S.syncToken=d.sync_token||S.syncToken;
     S.items=S.items.filter(function(i){return !i.is_deleted&&!i.checked||i.checked});
-    cache();busy=false;setStatus('已同步 '+new Date().toTimeString().slice(0,5));render();
+    cache();busy=false;setStatus('已同步 '+new Date().toTimeString().slice(0,5));render();reopenCases();
   }).catch(function(e){
     busy=false;setStatus('');fail(e);
   });
@@ -725,7 +725,7 @@ function renderPanel(){
         '<button class="link" onclick="archiveProject(\''+jsa(p.id)+'\')">封存</button>'+
         '<button class="link" style="color:var(--danger)" onclick="deleteProject(\''+jsa(p.id)+'\')">刪除</button></div>';
     }).join('') : '<p class="hint" style="margin-top:0">目前還沒有案子。</p>';
-    h+='<p class="hint">改名會自動更新所有已掛這個案子的任務；封存＝結案，案子從左側清單消失但任務全部保留（可復原）；刪除只移除案子標記，任務本身不會被刪。</p>';
+    h+='<p class="hint">改名會自動更新所有已掛這個案子的任務；封存＝結案，案子從左側清單消失但任務全部保留（可復原；有新訊息進來會自動回到進行中）；刪除只移除案子標記，任務本身不會被刪。</p>';
     var as=archivedProjects();
     if(as.length){
       h+='<div style="border-top:1px solid var(--lineSoft);margin-top:14px;padding-top:12px"><p class="hint" style="margin-top:0">已封存（'+as.length+'）</p>'+
@@ -857,7 +857,7 @@ function renameProject(full){
 }
 function archiveProject(full){
   var nm=pmeta(full).name,oc=openCount(full);
-  var msg='結案封存「'+nm+'」？\n'+(oc?'⚠️ 還有 '+oc+' 筆未完成任務，會一起被封存（不會刪除、不會完成）。\n':'')+'封存後案子從左側消失，任務全部保留；隨時可在「管理」→「已封存」復原。';
+  var msg='結案封存「'+nm+'」？\n'+(oc?'⚠️ 還有 '+oc+' 筆未完成任務，會一起被封存（不會刪除、不會完成）。\n':'')+'封存後案子從左側消失，任務全部保留；隨時可在「管理」→「已封存」復原，有新訊息進來也會自動復原。';
   if(!confirm(msg))return;
   if(activeProject===full)activeProject=null;
   closePanel();
@@ -869,6 +869,21 @@ function restoreProject(full){
   if(activeProject===full)activeProject=PRE+nm;
   closePanel();
   push([renameLabelCmd(full,PRE+nm)]);
+}
+/* 已封存的案子又有新訊息（秘書把新任務掛上 案-X）→ 自動回到未封存的一般狀況（AJ 2026-11-04）。
+   改名會把 封存-X 的舊任務一起帶回 案-X。只有擁有 封存-X 個人標籤的帳號動作；案-X 也是個人標籤時會撞名，留給手動處理。
+   同一個案子一次開頁只試一次，失敗不會反覆跳錯誤。 */
+var reopenTried={};
+function reopenCases(){
+  var cmds=[];
+  archivedProjects().forEach(function(p){
+    var full=PRE+p.name;
+    if(reopenTried[p.name]||!labelIdByName(p.id)||labelIdByName(full)||!hasProject(p.name))return;
+    reopenTried[p.name]=1;
+    if(activeProject===p.id)activeProject=full;
+    cmds.push(renameLabelCmd(p.id,full));
+  });
+  if(cmds.length)push(cmds);
 }
 function deleteProject(full){
   var nm=pmeta(full).name;
