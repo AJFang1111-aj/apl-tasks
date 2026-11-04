@@ -47,6 +47,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 #projlist{flex:1;overflow-y:auto;padding:0 8px 16px;-webkit-overflow-scrolling:touch}
 #foot{border-top:1px solid var(--lineSoft);padding:8px 16px;font-size:12px;color:var(--ink45);display:flex;justify-content:space-between;align-items:center;gap:8px}
 .link{color:var(--accent);font-size:12px}
+.link:disabled{color:var(--ink45);cursor:default}
 
 #main{flex:1;display:flex;flex-direction:column;min-width:0;height:100%}
 header{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-start}
@@ -160,7 +161,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 <aside id="side">
   <div id="brand"><b>吉格線 任務台</b><span id="odue"></span></div>
   <nav id="views"></nav>
-  <div id="projhead"><span>案子</span><span class="hact"><button class="link" onclick="newProject()">新增</button><button class="link" onclick="openPanel('projects')">管理</button></span></div>
+  <div id="projhead"><span>案子</span><span class="hact"><button class="link" onclick="newProject()">新增</button><button class="link" onclick="openPanel('projects')">管理</button><button class="link" id="archbtn" onclick="archiveActive()" title="封存左側選中的案子；可在「管理」→「已封存」復原" disabled>封存</button></span></div>
   <div style="padding:8px 12px 6px"><input id="pfilter" type="text" placeholder="搜尋案子" style="font-size:13px;padding:5px 8px;background:var(--bg)"></div>
   <div id="projlist"></div>
   <div id="foot">
@@ -205,7 +206,7 @@ var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
 function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
-var VERSION='2026-11-04a';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
+var VERSION='2026-11-04b';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
 var verAt=0;
 function checkVersion(){
   if(Date.now()-verAt<6e5)return;verAt=Date.now();
@@ -279,7 +280,7 @@ function pull(full){
     }
     S.syncToken=d.sync_token||S.syncToken;
     S.items=S.items.filter(function(i){return !i.is_deleted&&!i.checked||i.checked});
-    cache();busy=false;setStatus('已同步 '+new Date().toTimeString().slice(0,5));render();reopenCases();
+    cache();busy=false;setStatus('已同步 '+new Date().toTimeString().slice(0,5));render();reopenCases(d.full_sync||t==='*');
   }).catch(function(e){
     busy=false;setStatus('');fail(e);
   });
@@ -634,6 +635,7 @@ function render(){
     qval()?'搜尋「'+qval()+'」':showDone?'已完成':activeProject?(activeProject==='none'?'未分案':pmeta(activeProject).name+(pmeta(activeProject).archived?'（已封存）':'')):VIEWS.filter(function(v){return v[0]===view})[0][1];
   document.getElementById('count').textContent=vs.length+' 筆';
   document.getElementById('hstage').innerHTML=(activeProject&&activeProject!=='none'&&!showDone&&!qval())?stageSelect(activeProject,'hsel'):'';
+  document.getElementById('archbtn').disabled=!(activeProject&&activeProject.indexOf(PRE)===0);
 
   var chipHtml=function(l){
       var on=activeLabels.indexOf(l.name)>=0;
@@ -859,9 +861,18 @@ function archiveProject(full){
   var nm=pmeta(full).name,oc=openCount(full);
   var msg='結案封存「'+nm+'」？\n'+(oc?'⚠️ 還有 '+oc+' 筆未完成任務，會一起被封存（不會刪除、不會完成）。\n':'')+'封存後案子從左側消失，任務全部保留；隨時可在「管理」→「已封存」復原，有新訊息進來也會自動復原。';
   if(!confirm(msg))return;
+  doArchive(full);
+}
+/* 左側「封存」按鈕：點一下就封存選中的案子，不跳確認（AJ 2026-11-04）；可在「管理」→「已封存」復原。 */
+function archiveActive(){if(activeProject&&activeProject.indexOf(PRE)===0)doArchive(activeProject)}
+/* 樂觀更新，連已完成任務也改：增量同步不一定會送回這些任務，沒改的話案子會留在左側。失敗時 push 會 pull(true) 還原。 */
+function doArchive(full){
+  var arc=ARC+pmeta(full).name,cmd=renameLabelCmd(full,arc);
+  S.items.forEach(function(t){t.labels=(t.labels||[]).map(function(x){return x===full?arc:x})});
   if(activeProject===full)activeProject=null;
   closePanel();
-  push([renameLabelCmd(full,ARC+nm)]);
+  render();
+  push([cmd]);
 }
 function restoreProject(full){
   var nm=pmeta(full).name;
@@ -872,18 +883,22 @@ function restoreProject(full){
 }
 /* 已封存的案子又有新訊息（秘書把新任務掛上 案-X）→ 自動回到未封存的一般狀況（AJ 2026-11-04）。
    改名會把 封存-X 的舊任務一起帶回 案-X。只有擁有 封存-X 個人標籤的帳號動作；案-X 也是個人標籤時會撞名，留給手動處理。
+   只看未完成任務：已完成的舊任務不算新訊息。只信完整同步的資料：增量同步可能留著改名前的舊任務，先完整同步確認才改名。
    同一個案子一次開頁只試一次，失敗不會反覆跳錯誤。 */
 var reopenTried={};
-function reopenCases(){
-  var cmds=[];
-  archivedProjects().forEach(function(p){
+function reopenCases(fresh){
+  var todo=archivedProjects().filter(function(p){
     var full=PRE+p.name;
-    if(reopenTried[p.name]||!labelIdByName(p.id)||labelIdByName(full)||!hasProject(p.name))return;
+    return !reopenTried[p.name]&&labelIdByName(p.id)&&!labelIdByName(full)&&labelUseCount(full);
+  });
+  if(!todo.length)return;
+  if(!fresh){pull(true);return}
+  push(todo.map(function(p){
+    var full=PRE+p.name;
     reopenTried[p.name]=1;
     if(activeProject===p.id)activeProject=full;
-    cmds.push(renameLabelCmd(p.id,full));
-  });
-  if(cmds.length)push(cmds);
+    return renameLabelCmd(p.id,full);
+  }));
 }
 function deleteProject(full){
   var nm=pmeta(full).name;
