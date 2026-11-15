@@ -100,6 +100,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .editrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .editrow select,.editrow input{width:auto;font-size:13px}
 .empty{padding:60px 20px;text-align:center;color:var(--ink45)}
+.qsep{padding:10px 20px;background:var(--bg);border-bottom:1px solid var(--lineSoft);font-size:12px;color:var(--ink45);display:flex;gap:10px;align-items:center}
 
 #gate{position:fixed;inset:0;background:var(--bg);z-index:60;display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
 #gate.on{display:flex}
@@ -206,7 +207,7 @@ var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
 function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
-var VERSION='2026-11-04b';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
+var VERSION='2026-11-15a';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
 var verAt=0;
 function checkVersion(){
   if(Date.now()-verAt<6e5)return;verAt=Date.now();
@@ -576,6 +577,15 @@ function closeSide(){document.getElementById('side').classList.remove('open')}
 var VIEWS=[['today','今天與逾期'],['week','未來 7 天'],['nodate','沒有日期'],['all','全部']];
 function dueOf(it){return it.due&&it.due.date?it.due.date.slice(0,10):''}
 function qval(){var e=document.getElementById('q');return e?e.value.trim():''}
+/* 搜尋分兩層：標題／案子／標籤是主要結果；只有內文提到的放後面，要點開才看。
+   秘書寫的 dedup 註記常常提到別的案子（例：「未找到北護…的既有任務」），
+   全文一起比對會把不相關的任務撈進來。 */
+var qbody=false,qbodyCount=0,qsplit=0;
+function qhit(t,ws,withBody){
+  var hay=((t.content||'')+' '+(t.labels||[]).join(' ')+(withBody?' '+(t.description||''):'')).toLowerCase();
+  return ws.every(function(w){return hay.indexOf(w)>=0});
+}
+function toggleQBody(){qbody=!qbody;render()}
 function tsort(a,b){
   var da=dueOf(a),db=dueOf(b);
   if(!da&&db)return 1;
@@ -589,11 +599,10 @@ function visible(){
   if(!q)out=out.filter(function(t){return !isSys(t)});
   if(q){
     var ws=q.split(/\s+/);
-    out=out.filter(function(t){
-      var hay=((t.content||'')+' '+(t.description||'')+' '+(t.labels||[]).join(' ')).toLowerCase();
-      return ws.every(function(w){return hay.indexOf(w)>=0});
-    });
-    return out.sort(tsort);
+    var main=out.filter(function(t){return qhit(t,ws,false)}).sort(tsort);
+    var body=out.filter(function(t){return !qhit(t,ws,false)&&qhit(t,ws,true)}).sort(tsort);
+    qbodyCount=body.length;qsplit=main.length;
+    return qbody?main.concat(body):main;
   }
   if(activeProject)out=out.filter(function(t){return (taskProject(t)||'none')===activeProject});
   if(activeLabels.length)out=out.filter(function(t){
@@ -661,8 +670,16 @@ function render(){
   document.getElementById('zeA').className=zedit.A?'on':'';
   document.getElementById('zclear').innerHTML=activeLabels.length?'<button class="link" onclick="activeLabels=[];render()">清除篩選</button>':'';
 
-  document.getElementById('list').innerHTML=vs.length?vs.map(rowHTML).join(''):
-    '<div class="empty">這裡是空的。在上方輸入一筆任務：#動作 標記動作標籤、@員工 指派同事，案子用左側選。</div>';
+  var searching=!!qval(),html='';
+  vs.forEach(function(t,i){
+    if(searching&&qbody&&qbodyCount&&i===qsplit)
+      html+='<div class="qsep">以下 '+qbodyCount+' 筆只有內文提到「'+esc(qval())+'」<button class="link" onclick="toggleQBody()">收起</button></div>';
+    html+=rowHTML(t);
+  });
+  if(searching&&qbodyCount&&!qbody)
+    html+='<div class="qsep">另有 '+qbodyCount+' 筆只在內文提到（常是秘書的 dedup 註記）<button class="link" onclick="toggleQBody()">一併顯示</button></div>';
+  document.getElementById('list').innerHTML=html||
+    '<div class="empty">'+(searching?'找不到符合的任務。':'這裡是空的。在上方輸入一筆任務：#動作 標記動作標籤、@員工 指派同事，案子用左側選。')+'</div>';
 }
 
 function rowHTML(t){
@@ -976,10 +993,10 @@ function imeBusy(el,e){
 }
 ['pfilter','q','draft'].forEach(function(id){imeTrack(document.getElementById(id))});
 document.getElementById('pfilter').addEventListener('input',function(){if(!this._ime)render()});
-document.getElementById('q').addEventListener('input',function(){if(!this._ime)render()});
+document.getElementById('q').addEventListener('input',function(){qbody=false;if(!this._ime)render()});
 document.getElementById('q').addEventListener('compositionend',render);
 document.getElementById('pfilter').addEventListener('compositionend',render);
-document.getElementById('q').addEventListener('keydown',function(e){if(e.key==='Escape'){this.value='';render()}});
+document.getElementById('q').addEventListener('keydown',function(e){if(e.key==='Escape'){this.value='';qbody=false;render()}});
 document.getElementById('draft').addEventListener('keydown',function(e){
   if(e.key!=='Enter')return;
   if(imeBusy(this,e))return;      /* 這個 Enter 是在確認選字，不是要送出 */
