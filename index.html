@@ -103,6 +103,8 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .lcap{font-size:12px;color:var(--ink45);flex-shrink:0;width:30px;padding-top:3px}
 .lchips{display:flex;flex-wrap:wrap;gap:4px;flex:1}
 .empty{padding:60px 20px;text-align:center;color:var(--ink45)}
+#newver{color:#fff;background:var(--warn);border-radius:6px;padding:3px 10px}
+body.stalever #main::before{content:'有新版本，請重新整理（⌘⇧R）才看得到最新功能';display:block;background:var(--warn);color:#fff;font-size:13px;padding:6px 20px;text-align:center}
 .qsep{padding:10px 20px;background:var(--bg);border-bottom:1px solid var(--lineSoft);font-size:12px;color:var(--ink45);display:flex;gap:10px;align-items:center}
 
 #gate{position:fixed;inset:0;background:var(--bg);z-index:60;display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
@@ -171,7 +173,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
   <div id="foot">
     <button class="link" onclick="pull(true)">重新整理</button>
     <span id="status"></span>
-    <button class="link" id="newver" hidden style="color:var(--warn)" onclick="location.reload()">有新版，點我更新</button>
+    <button class="link" id="newver" hidden onclick="location.reload()">有新版，點我更新</button>
     <button class="link" onclick="openPanel('settings')">設定</button>
   </div>
 </aside>
@@ -210,13 +212,13 @@ var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
 function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
-var VERSION='2026-11-23a';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
+var VERSION='2026-11-23b';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
 var verAt=0;
 function checkVersion(){
   if(Date.now()-verAt<6e5)return;verAt=Date.now();
   fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){
     var m=/var VERSION='([^']+)'/.exec(t);
-    if(m&&m[1]!==VERSION)document.getElementById('newver').hidden=false;
+    if(m&&m[1]!==VERSION){document.getElementById('newver').hidden=false;document.body.classList.add('stalever')}
   }).catch(function(){});
 }
 
@@ -1014,6 +1016,7 @@ document.getElementById('draft').addEventListener('keydown',function(e){
 });
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&token){pull(false);checkVersion()}});
 setTimeout(checkVersion,4000);
+setInterval(checkVersion,6e5);   /* 一直開著也會每 10 分鐘自己查一次，不必切分頁 */
 
 if(window.innerWidth<=760)document.body.classList.add('zhide');
 restore();render();
