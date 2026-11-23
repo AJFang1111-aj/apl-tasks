@@ -100,6 +100,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .edit{margin-top:12px;padding-top:12px;border-top:1px solid var(--lineSoft);display:grid;gap:8px}
 .editrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .editrow select,.editrow input{width:auto;font-size:13px}
+.rpeople{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:45%;flex-shrink:0}
 .lrow{display:flex;gap:8px;align-items:flex-start}
 .lcap{font-size:12px;color:var(--ink45);flex-shrink:0;width:30px;padding-top:3px}
 .lchips{display:flex;flex-wrap:wrap;gap:4px;flex:1}
@@ -143,6 +144,8 @@ body.stalever #main::before{content:'有新版本，請重新整理（⌘⇧R）
   #zoneA,#zoneP{flex:1 1 100%;min-width:0}
   #add{flex-wrap:wrap}
   #add input[type=text]{flex:1 1 100%}
+  .row{flex-wrap:wrap}                                 /* 手機：員工鈕換到任務下一行 */
+  .rpeople{max-width:none;flex:1 1 100%;justify-content:flex-start;padding-left:30px}
 }
 @media (prefers-reduced-motion:reduce){#side{transition:none}}
 </style>
@@ -213,7 +216,7 @@ var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
 function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
-var VERSION='2026-11-23c';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
+var VERSION='2026-11-23d';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
 var verAt=0;
 function checkVersion(){
   if(Date.now()-verAt<6e5)return;verAt=Date.now();
@@ -746,7 +749,20 @@ function rowHTML(t){
   }else if(t.description){
     h+='<div class="note">'+esc(t.description.length>160?t.description.slice(0,160)+'…':t.description)+'</div>';
   }
-  return h+'</div></div>';
+  return h+'</div>'+personChips(t)+'</div>';
+}
+/* 任務列右側的員工鈕：亮的＝已指派，點一下就指派／取消（可以多人）。
+   展開編輯時下面已有同一組鈕，這裡就不重複；已完成的任務不顯示。
+   放在員工 Todoist 專案裡的任務也算那位員工的（同 projPerson），那顆只亮、不能點，要改請到 Todoist 移專案。 */
+function personChips(t){
+  if(t.checked||editing===t.id||!PEOPLE.length)return '';
+  var pp=projPerson(t);
+  var ppl=actionLabels().filter(function(l){return l.type==='person'}).map(function(l){return l.name});  /* 跟上方員工區同順序 */
+  return '<div class="rpeople">'+ppl.map(function(n){
+    var lab=(t.labels||[]).indexOf(n)>=0;
+    if(!lab&&pp===n)return '<span class="chip person on" title="這筆放在 '+esc(n)+' 的 Todoist 專案裡，所以算 '+esc(n)+' 的">'+esc(n)+'</span>';
+    return '<button class="chip person'+(lab?' on':'')+'" onclick="toggleTaskLabel(\''+t.id+'\',\''+jsa(n)+'\')" title="'+(lab?'取消指派 ':'指派給 ')+esc(n)+'">'+esc(n)+'</button>';
+  }).join('')+'</div>';
 }
 
 /* ══ 面板 ══ */
