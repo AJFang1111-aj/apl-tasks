@@ -81,6 +81,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .hsel,.msel{width:auto;font-size:12px;padding:2px 6px}
 .chip{padding:2px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink45)}
 .chip.person{color:var(--ink70)}
+.chip.nop{border-style:dashed}
 .chip.on{border-color:var(--accent);background:var(--accentSoft);color:var(--accent)}
 #add{background:var(--surface);border-bottom:1px solid var(--line);padding:8px 20px;display:flex;gap:8px;align-items:center}
 #add input[type=text]{flex:1}
@@ -212,7 +213,7 @@ var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
 function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
-var VERSION='2026-11-23b';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
+var VERSION='2026-11-23c';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
 var verAt=0;
 function checkVersion(){
   if(Date.now()-verAt<6e5)return;verAt=Date.now();
@@ -572,7 +573,21 @@ function delTask(id){
 function setView(v){view=v;showDone=false;activeProject=null;closeSide();render()}
 function pickProject(id){activeProject=id;showDone=false;view='all';closeSide();render()}
 function toggleDone(){showDone=!showDone;closeSide();render()}
-function toggleChip(n){var i=activeLabels.indexOf(n);if(i>=0)activeLabels.splice(i,1);else activeLabels.push(n);render()}
+function toggleChip(n){
+  var i=activeLabels.indexOf(n);if(i>=0)activeLabels.splice(i,1);else activeLabels.push(n);
+  if(i<0&&PEOPLE.indexOf(n)>=0)activeLabels=activeLabels.filter(function(l){return l!==NOP});
+  render();
+}
+/* 「未指派」＝沒有任何員工的任務（標籤沒有員工、所在 Todoist 專案也不是員工的）。
+   跟個別員工互斥：同時選只會得到空清單，所以選一邊就取消另一邊。 */
+var NOP='\u0001未指派';
+function toggleNoPerson(){
+  var on=activeLabels.indexOf(NOP)>=0;
+  activeLabels=activeLabels.filter(function(l){return l!==NOP&&PEOPLE.indexOf(l)<0});
+  if(!on)activeLabels.push(NOP);
+  render();
+}
+function noPerson(t){return !PEOPLE.some(function(p){return hasPerson(t,p)})}
 function toggleEdit(id){editing=editing===id?null:id;render()}
 function toggleZones(){document.body.classList.toggle('zhide');render()}
 function toggleSide(){document.getElementById('side').classList.toggle('open')}
@@ -611,7 +626,7 @@ function visible(){
   }
   if(activeProject)out=out.filter(function(t){return (taskProject(t)||'none')===activeProject});
   if(activeLabels.length)out=out.filter(function(t){
-    return activeLabels.every(function(l){return PEOPLE.indexOf(l)>=0?hasPerson(t,l):(t.labels||[]).indexOf(l)>=0})});
+    return activeLabels.every(function(l){return l===NOP?noPerson(t):PEOPLE.indexOf(l)>=0?hasPerson(t,l):(t.labels||[]).indexOf(l)>=0})});
   if(!showDone){
     var d;
     if(view==='today')out=out.filter(function(t){d=dueOf(t);return d&&d<=TODAY});
@@ -663,7 +678,9 @@ function render(){
     };
   var als=actionLabels();
   var pp=als.filter(function(l){return l.type==='person'}), aa=als.filter(function(l){return l.type!=='person'});
-  document.getElementById('chipsP').innerHTML=pp.length?pp.map(zedit.P?chipEditHtml:chipHtml).join(''):'<span class="chip" style="border-style:dashed">（按＋新增員工）</span>';
+  document.getElementById('chipsP').innerHTML=pp.length?pp.map(zedit.P?chipEditHtml:chipHtml).join('')+
+    (zedit.P?'':'<button class="chip person nop'+(activeLabels.indexOf(NOP)>=0?' on':'')+'" onclick="toggleNoPerson()" title="只看沒有指派任何員工的任務">未指派</button>')
+    :'<span class="chip" style="border-style:dashed">（按＋新增員工）</span>';
   document.getElementById('chipsA').innerHTML=aa.map(zedit.A?chipEditHtml:chipHtml).join('');
   var sc=scanInfo(),zs=document.getElementById('zscan');
   zs.hidden=!sc;
