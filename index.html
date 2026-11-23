@@ -99,6 +99,9 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
 .edit{margin-top:12px;padding-top:12px;border-top:1px solid var(--lineSoft);display:grid;gap:8px}
 .editrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .editrow select,.editrow input{width:auto;font-size:13px}
+.lrow{display:flex;gap:8px;align-items:flex-start}
+.lcap{font-size:12px;color:var(--ink45);flex-shrink:0;width:30px;padding-top:3px}
+.lchips{display:flex;flex-wrap:wrap;gap:4px;flex:1}
 .empty{padding:60px 20px;text-align:center;color:var(--ink45)}
 .qsep{padding:10px 20px;background:var(--bg);border-bottom:1px solid var(--lineSoft);font-size:12px;color:var(--ink45);display:flex;gap:10px;align-items:center}
 
@@ -207,7 +210,7 @@ var PRE='案-';                      /* 案子以標籤儲存的前綴 */
 var ARC='封存-';                    /* 已結案封存的案子：同一個標籤改成這個前綴，任務保留 */
 function isProjLabel(n){return n.indexOf(PRE)===0||n.indexOf(ARC)===0}
 var token=localStorage.getItem(TK)||'';
-var VERSION='2026-11-15a';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
+var VERSION='2026-11-23a';      /* 每次改版都要換：其他裝置靠它發現自己拿到的是舊網頁 */
 var verAt=0;
 function checkVersion(){
   if(Date.now()-verAt<6e5)return;verAt=Date.now();
@@ -682,6 +685,17 @@ function render(){
     '<div class="empty">'+(searching?'找不到符合的任務。':'這裡是空的。在上方輸入一筆任務：#動作 標記動作標籤、@員工 指派同事，案子用左側選。')+'</div>';
 }
 
+/* 編輯任務時的標籤分兩組顯示：員工一組、動作一組，和右上角的兩個區塊一致 */
+function labelGroup(t,cap,type){
+  var ls=actionLabels().filter(function(l){return type==='person'?l.type==='person':l.type!=='person'});
+  if(!ls.length)return'';
+  return '<div class="lrow"><span class="lcap">'+cap+'</span><span class="lchips">'+
+    ls.map(function(l){
+      var on=(t.labels||[]).indexOf(l.name)>=0;
+      return '<button class="chip'+(l.type==='person'?' person':'')+(on?' on':'')+
+        '" onclick="toggleTaskLabel(\''+t.id+'\',\''+jsa(l.name)+'\')">'+esc(l.name)+'</button>';
+    }).join('')+'</span></div>';
+}
 function rowHTML(t){
   var d=dueOf(t),late=d&&d<TODAY&&!t.checked,ui=toUI(t.priority),pj=taskProject(t);
   var h='<div class="row"'+(editing===t.id?'':' draggable="true" ondragstart="dragT(event,\''+t.id+'\')"')+'>'+
@@ -708,12 +722,8 @@ function rowHTML(t){
         '<input type="date" value="'+d+'" onchange="setDue(\''+t.id+'\',this.value)">'+
         '<button class="link" style="margin-left:auto;color:var(--danger)" onclick="delTask(\''+t.id+'\')">刪除</button>'+
       '</div>'+
-      '<div style="display:flex;flex-wrap:wrap;gap:4px">'+
-        actionLabels().map(function(l){
-          var on=(t.labels||[]).indexOf(l.name)>=0;
-          return '<button class="chip'+(on?' on':'')+'" onclick="toggleTaskLabel(\''+t.id+'\',\''+jsa(l.name)+'\')">'+esc(l.name)+'</button>';
-        }).join('')+
-      '</div></div>';
+      labelGroup(t,'員工','person')+labelGroup(t,'動作','action')+
+      '</div>';
   }else if(t.description){
     h+='<div class="note">'+esc(t.description.length>160?t.description.slice(0,160)+'…':t.description)+'</div>';
   }
